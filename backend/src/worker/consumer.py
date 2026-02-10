@@ -296,12 +296,16 @@ async def _schedule_debounce(
     Wait for the debounce TTL to expire, then process the batch.
     """
     try:
+        logger.info("Debounce started for conversation %d (%ds wait).", conversation_id, settings.debounce_ttl_seconds)
         await asyncio.sleep(settings.debounce_ttl_seconds)
         still_present = await redis_svc.buffer_exists(conversation_id)
+        logger.info("Debounce fired for conversation %d (buffer_exists=%s).", conversation_id, still_present)
         if still_present:
             await _process_batch(conversation_id, account_id, payload)
+        else:
+            logger.warning("Buffer expired before processing for conversation %d!", conversation_id)
     except asyncio.CancelledError:
-        logger.debug("Debounce task cancelled for conversation %d.", conversation_id)
+        logger.info("Debounce task cancelled for conversation %d (new message arrived).", conversation_id)
     except Exception:
         logger.exception("Debounce task failed for conversation %d.", conversation_id)
     finally:
@@ -420,11 +424,14 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
             return
 
         # --- Push to Redis buffer ---
+        # TTL must be much longer than debounce sleep to avoid expiring before processing
+        buffer_ttl = max(settings.debounce_ttl_seconds * 10, 30)
         await redis_svc.push_to_buffer(
             conversation_id=conversation_id,
             content=content,
-            ttl_seconds=settings.debounce_ttl_seconds,
+            ttl_seconds=buffer_ttl,
         )
+        logger.info("Pushed to Redis buffer for conversation %d (ttl=%ds).", conversation_id, buffer_ttl)
 
         # --- Reset debounce timer ---
         existing_task = _debounce_tasks.get(conversation_id)
