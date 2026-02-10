@@ -383,10 +383,24 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
         else:
             logger.info("Organization has no inbox_id configured - accepting all inboxes.")
 
-        # --- Audio handling ---
-        content: str = payload.get("content") or ""
+        # --- Extract content from multiple possible locations ---
+        content: str = (
+            payload.get("content")
+            or payload.get("body")
+            or payload.get("text")
+            or ""
+        )
         attachments: list[dict[str, Any]] = payload.get("attachments", [])
 
+        logger.info(
+            "Content extracted for conversation %d: '%s' (%d chars, %d attachments).",
+            conversation_id,
+            content[:80] if content else "<empty>",
+            len(content),
+            len(attachments),
+        )
+
+        # --- Audio handling ---
         for attachment in attachments:
             if attachment.get("file_type") == "audio":
                 data_url = attachment.get("data_url", "")
@@ -398,7 +412,11 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
                         logger.exception("Audio transcription failed; using original content.")
 
         if not content.strip():
-            logger.debug("Empty content for conversation %d. Skipping.", conversation_id)
+            logger.warning(
+                "Empty content for conversation %d after extraction. Payload keys: %s. Skipping.",
+                conversation_id,
+                list(payload.keys()),
+            )
             return
 
         # --- Push to Redis buffer ---
