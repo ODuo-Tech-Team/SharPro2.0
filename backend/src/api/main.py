@@ -113,11 +113,11 @@ async def chatwoot_webhook(request: Request) -> Response:
 
     # --- Gate: only process incoming messages ---
     if event != "message_created":
-        logger.debug("Ignoring event '%s'.", event)
+        logger.info("Ignoring event '%s' (not message_created).", event)
         return Response(content='{"detail":"event ignored"}', status_code=200, media_type="application/json")
 
     if message_type != 0:
-        logger.debug("Ignoring non-incoming message (message_type=%s).", message_type)
+        logger.info("Ignoring non-incoming message (message_type=%s, event=%s).", message_type, event)
         return Response(content='{"detail":"non-incoming ignored"}', status_code=200, media_type="application/json")
 
     account_id = body.get("account_id")
