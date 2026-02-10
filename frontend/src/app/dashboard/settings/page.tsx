@@ -7,6 +7,8 @@ interface OrgSettings {
   system_prompt: string | null;
   chatwoot_url: string | null;
   chatwoot_token: string | null;
+  chatwoot_account_id: number | null;
+  inbox_id: number | null;
   openai_api_key: string | null;
 }
 
@@ -30,7 +32,7 @@ async function getOrgSettings(): Promise<OrgSettings | null> {
   const { data: org } = await supabase
     .from("organizations")
     .select(
-      "id, name, system_prompt, chatwoot_url, chatwoot_token, openai_api_key"
+      "id, name, system_prompt, chatwoot_url, chatwoot_token, chatwoot_account_id, inbox_id, openai_api_key"
     )
     .eq("id", profile.organization_id)
     .single();
