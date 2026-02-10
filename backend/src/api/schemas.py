@@ -1,0 +1,88 @@
+"""
+SharkPro V2 - Pydantic Schemas for Chatwoot Webhook Payloads
+
+These models mirror the structure sent by Chatwoot on the `message_created` event.
+Only the fields we actually use are declared; the rest are silently ignored thanks
+to ``model_config = ConfigDict(extra="ignore")``.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Optional
+
+from pydantic import BaseModel, ConfigDict
+
+
+class ChatwootSender(BaseModel):
+    """Sender block inside a Chatwoot message."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+    type: Optional[str] = None
+
+
+class ChatwootAttachment(BaseModel):
+    """Single attachment within a Chatwoot message."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int
+    file_type: str  # "audio", "image", "file", etc.
+    data_url: str
+    account_id: Optional[int] = None
+
+
+class ChatwootConversation(BaseModel):
+    """Conversation block embedded in the webhook payload."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int
+    account_id: int
+    inbox_id: Optional[int] = None
+    status: Optional[str] = None
+    labels: list[str] = []
+    contact_inbox: Optional[dict[str, Any]] = None
+
+
+class ChatwootMessage(BaseModel):
+    """The top-level message object inside the webhook body."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int
+    content: Optional[str] = None
+    message_type: int  # 0 = incoming, 1 = outgoing
+    account_id: int
+    conversation_id: int  # kept at top level for convenience
+    sender: Optional[ChatwootSender] = None
+    attachments: list[ChatwootAttachment] = []
+
+
+class ChatwootWebhookPayload(BaseModel):
+    """
+    Full Chatwoot webhook payload for the ``message_created`` event.
+
+    Chatwoot sends the message fields at the *top level* of the JSON body,
+    alongside an ``event`` key and a nested ``conversation`` object.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    event: str
+
+    # -- Message-level fields (top level) --
+    id: int
+    content: Optional[str] = None
+    message_type: int
+    account_id: int
+    conversation_id: Optional[int] = None
+
+    # -- Nested objects --
+    sender: Optional[ChatwootSender] = None
+    conversation: Optional[ChatwootConversation] = None
+    attachments: list[ChatwootAttachment] = []

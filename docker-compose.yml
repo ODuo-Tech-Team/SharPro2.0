@@ -1,0 +1,81 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shark_backend
+    ports:
+        - "8007:8000"
+    env_file:
+      - .env
+    depends_on:
+      - shark_redis
+    networks:
+      - shark_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: shark_worker
+    env_file:
+      - .env
+    depends_on:
+      - shark_redis
+    networks:
+      - shark_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    container_name: shark_frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    networks:
+      - shark_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  shark_redis:
+    image: redis:alpine
+    container_name: shark_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - shark_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    command: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru
+
+volumes:
+  redis_data:
+
+networks:
+  shark_net:
+    driver: bridge
