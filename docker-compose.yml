@@ -1,55 +1,57 @@
-services:                                                                                                                                                                                                                    backend:
-      build:                                                                                                                                                                                                                       context: ./backend                                                                                                                                                                                                 
-        dockerfile: Dockerfile
-      container_name: shark_backend
-      ports:
-          - "8007:8000"
-      env_file:
-        - .env
-      depends_on:
-        - shark_redis
-      networks:
-        - shark_net
-      restart: unless-stopped
-      deploy:
-        resources:
-          limits:
-            memory: 384M
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shark_backend
+    ports:
+      - "8007:8000"
+    env_file:
+      - .env
+    depends_on:
+      - shark_redis
+    networks:
+      - shark_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
 
-    worker:
-      build:
-        context: ./backend
-        dockerfile: Dockerfile.worker
-      container_name: shark_worker
-      env_file:
-        - .env
-      depends_on:
-        - shark_redis
-      networks:
-        - shark_net
-      restart: unless-stopped
-      deploy:
-        resources:
-          limits:
-            memory: 384M
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: shark_worker
+    env_file:
+      - .env
+    depends_on:
+      - shark_redis
+    networks:
+      - shark_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
 
-    shark_redis:
-      image: redis:alpine
-      container_name: shark_redis
-      volumes:
-        - redis_data:/data
-      networks:
-        - shark_net
-      restart: unless-stopped
-      deploy:
-        resources:
-          limits:
-            memory: 128M
-      command: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru
+  shark_redis:
+    image: redis:alpine
+    container_name: shark_redis
+    volumes:
+      - redis_data:/data
+    networks:
+      - shark_net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    command: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru
 
-  volumes:
-    redis_data:
+volumes:
+  redis_data:
 
-  networks:
-    shark_net:
-      driver: bridge
+networks:
+  shark_net:
+    driver: bridge

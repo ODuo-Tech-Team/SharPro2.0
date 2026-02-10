@@ -47,7 +47,7 @@ async def get_organization_by_account_id(account_id: int) -> Optional[dict[str, 
         )
         if response.data:
             org = response.data[0]
-            logger.debug("Found organization '%s' for account %d.", org.get("name"), account_id)
+            logger.info("Found organization '%s' for account %d.", org.get("name"), account_id)
             return org
         logger.warning("No organization found for chatwoot_account_id=%d.", account_id)
         return None

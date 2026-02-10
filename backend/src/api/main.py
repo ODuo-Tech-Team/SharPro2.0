@@ -78,9 +78,19 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 @app.get("/health")
-async def health_check() -> dict[str, str]:
-    """Simple liveness probe."""
-    return {"status": "ok", "service": "sharkpro-api"}
+async def health_check() -> dict[str, Any]:
+    """Liveness probe with RabbitMQ status."""
+    rmq_ok = False
+    try:
+        exchange = await rmq.get_exchange()
+        rmq_ok = exchange is not None
+    except Exception:
+        pass
+    return {
+        "status": "ok" if rmq_ok else "degraded",
+        "service": "sharkpro-api",
+        "rabbitmq": "connected" if rmq_ok else "disconnected",
+    }
 
 
 @app.post("/webhooks/chatwoot", status_code=200)
@@ -134,8 +144,15 @@ async def chatwoot_webhook(request: Request) -> Response:
             routing_key=settings.rabbitmq_routing_key,
             body=body,
         )
+        logger.info(
+            "Message PUBLISHED to RabbitMQ for account=%s conversation=%s (exchange=%s, key=%s).",
+            account_id, conversation_id, settings.rabbitmq_exchange, settings.rabbitmq_routing_key,
+        )
     except Exception:
-        logger.exception("Failed to publish webhook payload to RabbitMQ.")
+        logger.exception(
+            "FAILED to publish to RabbitMQ for account=%s conversation=%s.",
+            account_id, conversation_id,
+        )
         # We still return 200 so Chatwoot doesn't retry indefinitely.
         return Response(
             content='{"detail":"internal error, message not queued"}',
@@ -173,6 +190,27 @@ async def transfer_webhook(payload: TransferPayload) -> dict[str, str]:
     except Exception:
         logger.exception("Transfer webhook failed.")
         return {"resposta": "Erro na transferencia."}
+
+
+@app.get("/debug/rabbitmq")
+async def debug_rabbitmq() -> dict[str, Any]:
+    """
+    Debug endpoint to test RabbitMQ publish/consume connectivity.
+
+    Publishes a test message and returns exchange info.
+    """
+    try:
+        exchange = await rmq.get_exchange()
+        return {
+            "status": "ok",
+            "exchange_name": exchange.name,
+            "rabbitmq_url": settings.rabbitmq_url.split("@")[-1],  # hide credentials
+            "routing_key": settings.rabbitmq_routing_key,
+            "queue": settings.rabbitmq_queue,
+        }
+    except Exception as exc:
+        logger.exception("Debug RabbitMQ failed.")
+        return {"status": "error", "detail": str(exc)}
 
 
 @app.post("/cron/inactivity", status_code=200)

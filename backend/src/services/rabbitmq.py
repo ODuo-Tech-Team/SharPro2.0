@@ -92,7 +92,7 @@ async def publish_message(
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
         )
         await exchange.publish(message, routing_key=routing_key)
-        logger.debug("Published message to '%s' with key '%s'.", exchange.name, routing_key)
+        logger.info("Published message to exchange '%s' with key '%s'.", exchange.name, routing_key)
     except Exception:
         logger.exception("Failed to publish message to RabbitMQ.")
         raise
