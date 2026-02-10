@@ -122,12 +122,26 @@ async def chatwoot_webhook(request: Request) -> Response:
         logger.info("Ignoring non-incoming message (message_type=%s, event=%s).", message_type, event)
         return Response(content='{"detail":"non-incoming ignored"}', status_code=200, media_type="application/json")
 
-    account_id = body.get("account_id")
+    # Extract account_id and conversation_id from multiple possible locations
     conversation = body.get("conversation", {})
-    conversation_id = body.get("conversation_id") or conversation.get("id")
+    account = body.get("account", {})
+
+    account_id = (
+        body.get("account_id")
+        or account.get("id")
+        or conversation.get("account_id")
+    )
+    conversation_id = (
+        body.get("conversation_id")
+        or conversation.get("id")
+        or conversation.get("display_id")
+    )
 
     if not account_id or not conversation_id:
-        logger.warning("Missing account_id or conversation_id in webhook payload.")
+        logger.warning(
+            "Missing account_id or conversation_id. Keys in payload: %s",
+            list(body.keys()),
+        )
         return Response(
             content='{"detail":"missing account_id or conversation_id"}',
             status_code=422,
