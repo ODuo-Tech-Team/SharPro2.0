@@ -170,11 +170,12 @@ async def _process_batch(
     Called after the debounce window closes.
 
     1. Collect buffered messages from Redis.
-    2. Retrieve org context from Supabase.
-    3. Handle audio transcription.
-    4. Run AI completion.
-    5. Send response via Chatwoot.
-    6. Check for sales labels.
+    2. Check human takeover flag — skip AI if active.
+    3. Retrieve org context from Supabase.
+    4. Build conversation history.
+    5. Run AI completion.
+    6. Send response via Chatwoot.
+    7. Check for sales labels.
     """
     try:
         # 1. Collect buffer
@@ -192,7 +193,16 @@ async def _process_batch(
             conversation_id,
         )
 
-        # 2. Retrieve organization context
+        # 2. Check human takeover flag — if a human agent is handling
+        #    this conversation, the AI must not respond.
+        if await redis_svc.is_human_takeover(conversation_id):
+            logger.info(
+                "Conversation %d is under human takeover. Skipping AI response.",
+                conversation_id,
+            )
+            return
+
+        # 3. Retrieve organization context
         org = await supabase_svc.get_organization_by_account_id(account_id)
         if org is None:
             logger.error(
@@ -206,14 +216,14 @@ async def _process_batch(
             "You are a helpful sales assistant. Be polite, concise, and helpful."
         )
 
-        # 3. Build conversation history
+        # 4. Build conversation history
         history = await _build_history(org, account_id, conversation_id)
 
-        # 4. Extract sender contact_id (for lead registration)
+        # 5. Extract sender contact_id (for lead registration)
         sender = payload.get("sender", {})
         contact_id: Optional[int] = sender.get("id") if sender else None
 
-        # 5. Lookup empresa for extra context (team_id, company, session info)
+        # 6. Lookup empresa for extra context (team_id, company, session info)
         empresa = None
         try:
             empresa = await supabase_svc.get_empresa_by_account_and_company(
@@ -222,7 +232,7 @@ async def _process_batch(
         except Exception:
             logger.warning("Could not fetch empresa for account %d (non-critical).", account_id)
 
-        # 6. Run AI
+        # 7. Run AI
         logger.info(
             "Running AI for conversation %d (org=%s, empresa=%s).",
             conversation_id, org.get("name"), "found" if empresa else "none",
@@ -255,7 +265,7 @@ async def _process_batch(
             len(ai_response), ctx.transferred, conversation_id,
         )
 
-        # 7. Send response to Chatwoot (unless transferred)
+        # 8. Send response to Chatwoot (unless transferred)
         if not ctx.transferred and ai_response.strip():
             try:
                 await chatwoot_svc.send_message(
@@ -276,7 +286,7 @@ async def _process_batch(
         else:
             logger.warning("Empty AI response for conversation %d.", conversation_id)
 
-        # 8. Sales tracking
+        # 9. Sales tracking
         await _check_and_record_sale(payload, org)
 
     except Exception:

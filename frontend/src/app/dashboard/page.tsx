@@ -126,6 +126,7 @@ async function getDashboardData() {
   );
 
   return {
+    orgId,
     totalLeads,
     leadsTrend,
     totalSalesVolume,
@@ -156,6 +157,7 @@ export default async function DashboardPage() {
 
   return (
     <DashboardContent
+      orgId={data.orgId}
       totalLeads={data.totalLeads}
       leadsTrend={data.leadsTrend}
       totalSalesVolume={data.totalSalesVolume}

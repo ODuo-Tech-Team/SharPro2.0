@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_settings
 from src.services import rabbitmq as rmq
+from src.services import redis_client as redis_svc
 from src.services.transfer import execute_transfer
 from src.services.inactivity import process_stale_atendimentos
 from src.api.schemas import TransferPayload
@@ -98,9 +99,13 @@ async def chatwoot_webhook(request: Request) -> Response:
     """
     Receive Chatwoot webhook events.
 
-    Only ``message_created`` events with ``message_type == 0`` (incoming)
-    are forwarded to the worker via RabbitMQ.  Everything else is
-    acknowledged silently.
+    Handles three scenarios:
+      1. ``message_created`` with ``message_type == 0`` (incoming from customer)
+         → Forward to RabbitMQ for AI processing.
+      2. ``message_created`` with ``message_type == 1`` (outgoing from human agent)
+         → Set human-takeover flag so AI stops responding.
+      3. ``conversation_status_changed`` to ``pending``
+         → Clear human-takeover flag so AI can respond again.
     """
     try:
         body: dict[str, Any] = await request.json()
@@ -110,17 +115,6 @@ async def chatwoot_webhook(request: Request) -> Response:
 
     event: str = body.get("event", "")
     message_type = body.get("message_type")
-
-    # --- Gate: only process incoming messages ---
-    if event != "message_created":
-        logger.info("Ignoring event '%s' (not message_created).", event)
-        return Response(content='{"detail":"event ignored"}', status_code=200, media_type="application/json")
-
-    # Chatwoot sends message_type as int (0) or string ("incoming")
-    is_incoming = message_type in (0, "incoming")
-    if not is_incoming:
-        logger.info("Ignoring non-incoming message (message_type=%s, event=%s).", message_type, event)
-        return Response(content='{"detail":"non-incoming ignored"}', status_code=200, media_type="application/json")
 
     # Extract account_id and conversation_id from multiple possible locations
     conversation = body.get("conversation", {})
@@ -136,6 +130,58 @@ async def chatwoot_webhook(request: Request) -> Response:
         or conversation.get("id")
         or conversation.get("display_id")
     )
+
+    # ------------------------------------------------------------------
+    # Event: conversation_status_changed → check if back to "pending"
+    # ------------------------------------------------------------------
+    if event == "conversation_status_changed":
+        new_status = (
+            conversation.get("status")
+            or body.get("status")
+            or ""
+        )
+        # Clear takeover when conversation goes back to "pending" (AI resumes)
+        # or "resolved" (conversation closed, no need to keep flag)
+        if new_status in ("pending", "resolved") and conversation_id:
+            logger.info(
+                "Conversation %s status changed to '%s'. Clearing human takeover.",
+                conversation_id,
+                new_status,
+            )
+            await redis_svc.clear_human_takeover(int(conversation_id))
+            return Response(content='{"detail":"takeover cleared"}', status_code=200, media_type="application/json")
+        logger.info("Conversation status changed to '%s'. Ignoring.", new_status)
+        return Response(content='{"detail":"status change ignored"}', status_code=200, media_type="application/json")
+
+    # ------------------------------------------------------------------
+    # Gate: only process message_created events from here
+    # ------------------------------------------------------------------
+    if event != "message_created":
+        logger.info("Ignoring event '%s' (not message_created).", event)
+        return Response(content='{"detail":"event ignored"}', status_code=200, media_type="application/json")
+
+    # ------------------------------------------------------------------
+    # Outgoing message (human agent) → set human takeover flag
+    # ------------------------------------------------------------------
+    is_outgoing = message_type in (1, "outgoing")
+    # Ignore private notes (internal messages between agents)
+    is_private = body.get("private", False)
+
+    if is_outgoing and not is_private and conversation_id:
+        logger.info(
+            "Human agent message detected for conversation %s. Setting takeover flag.",
+            conversation_id,
+        )
+        await redis_svc.set_human_takeover(int(conversation_id))
+        return Response(content='{"detail":"human takeover set"}', status_code=200, media_type="application/json")
+
+    # ------------------------------------------------------------------
+    # Incoming message (customer) → forward to RabbitMQ for AI
+    # ------------------------------------------------------------------
+    is_incoming = message_type in (0, "incoming")
+    if not is_incoming:
+        logger.info("Ignoring non-incoming message (message_type=%s, event=%s).", message_type, event)
+        return Response(content='{"detail":"non-incoming ignored"}', status_code=200, media_type="application/json")
 
     if not account_id or not conversation_id:
         logger.warning(

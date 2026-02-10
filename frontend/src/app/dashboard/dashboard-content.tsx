@@ -19,8 +19,10 @@ import {
 } from "@/components/ui/table";
 import { Users, DollarSign, Brain, MessageSquare } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useRealtimeDashboard } from "@/hooks/use-realtime";
 
 interface DashboardContentProps {
+  orgId: string;
   totalLeads: number;
   leadsTrend: number;
   totalSalesVolume: number;
@@ -36,6 +38,7 @@ interface DashboardContentProps {
 }
 
 export function DashboardContent({
+  orgId,
   totalLeads,
   leadsTrend,
   totalSalesVolume,
@@ -44,6 +47,15 @@ export function DashboardContent({
   chartData,
   recentSales,
 }: DashboardContentProps) {
+  const live = useRealtimeDashboard(orgId, {
+    totalLeads,
+    leadsTrend,
+    totalSalesVolume,
+    aiEfficiency,
+    activeCount,
+    chartData,
+    recentSales,
+  });
   return (
     <div className="space-y-6">
       <div>
@@ -57,35 +69,35 @@ export function DashboardContent({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Total de Leads"
-          value={totalLeads.toLocaleString("pt-BR")}
-          trend={leadsTrend}
+          value={live.totalLeads.toLocaleString("pt-BR")}
+          trend={live.leadsTrend}
           description="vs. semana anterior"
           icon={Users}
           iconColor="text-shark-blue"
         />
         <KpiCard
           title="Volume de Vendas"
-          value={formatCurrency(totalSalesVolume)}
+          value={formatCurrency(live.totalSalesVolume)}
           icon={DollarSign}
           iconColor="text-emerald-500"
         />
         <KpiCard
           title="Eficiencia da IA"
-          value={`${aiEfficiency}%`}
+          value={`${live.aiEfficiency}%`}
           description="vendas via IA"
           icon={Brain}
           iconColor="text-purple-500"
         />
         <KpiCard
           title="Conversas Ativas"
-          value={activeCount.toLocaleString("pt-BR")}
+          value={live.activeCount.toLocaleString("pt-BR")}
           icon={MessageSquare}
           iconColor="text-shark-accent"
         />
       </div>
 
       {/* Chart */}
-      <LeadsChart data={chartData} />
+      <LeadsChart data={live.chartData} />
 
       {/* Recent Sales Table */}
       <Card>
@@ -95,7 +107,7 @@ export function DashboardContent({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {recentSales.length === 0 ? (
+          {live.recentSales.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Nenhuma venda registrada ainda.
             </p>
@@ -109,7 +121,7 @@ export function DashboardContent({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentSales.map((sale) => (
+                {live.recentSales.map((sale) => (
                   <TableRow key={sale.id}>
                     <TableCell className="font-medium">
                       {formatDate(sale.created_at)}

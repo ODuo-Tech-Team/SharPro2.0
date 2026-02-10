@@ -79,6 +79,34 @@ async def buffer_exists(conversation_id: int) -> bool:
     return bool(await r.exists(key))
 
 
+async def set_human_takeover(conversation_id: int, ttl_seconds: int = 86400) -> None:
+    """
+    Flag a conversation as taken over by a human agent.
+
+    The AI will not respond to this conversation until the flag is cleared.
+    Default TTL is 24 hours (auto-cleanup safety net).
+    """
+    r = await get_redis()
+    key = f"human_takeover:{conversation_id}"
+    await r.set(key, "1", ex=ttl_seconds)
+    logger.info("Human takeover SET for conversation %d (ttl=%ds).", conversation_id, ttl_seconds)
+
+
+async def is_human_takeover(conversation_id: int) -> bool:
+    """Check whether a human agent has taken over a conversation."""
+    r = await get_redis()
+    key = f"human_takeover:{conversation_id}"
+    return bool(await r.exists(key))
+
+
+async def clear_human_takeover(conversation_id: int) -> None:
+    """Remove the human takeover flag, allowing the AI to respond again."""
+    r = await get_redis()
+    key = f"human_takeover:{conversation_id}"
+    await r.delete(key)
+    logger.info("Human takeover CLEARED for conversation %d.", conversation_id)
+
+
 async def close() -> None:
     """Gracefully close the Redis connection pool."""
     global _redis

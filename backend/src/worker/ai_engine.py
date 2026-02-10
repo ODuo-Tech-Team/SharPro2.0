@@ -23,6 +23,7 @@ from openai import AsyncOpenAI
 
 from src.config import get_settings
 from src.services import chatwoot as chatwoot_svc
+from src.services import redis_client as redis_svc
 from src.services import supabase_client as supabase_svc
 from src.services.transfer import execute_transfer
 from src.services.inactivity import process_stale_atendimentos
@@ -175,6 +176,10 @@ async def _execute_tool_call(
         if not session_id:
             session_id = f"{ctx.account_id}-0-{ctx.contact_id or 0}-{ctx.conversation_id}-{contact_phone}"
 
+        # Set takeover flag FIRST to prevent AI from responding during transfer
+        await redis_svc.set_human_takeover(ctx.conversation_id)
+        ctx.transferred = True
+
         try:
             result = await execute_transfer(
                 nome=contact_name,
@@ -185,18 +190,16 @@ async def _execute_tool_call(
                 url_chatwoot_override=ctx.chatwoot_url,
                 apikey_chatwoot_override=ctx.chatwoot_token,
             )
-            ctx.transferred = True
             return result
         except Exception as exc:
             logger.exception("transfer_to_human_specialist failed.")
-            # Fallback: at least toggle status
+            # Fallback: at least toggle status (flag already set above)
             try:
                 await chatwoot_svc.toggle_status(
                     url=ctx.chatwoot_url, token=ctx.chatwoot_token,
                     account_id=ctx.account_id, conversation_id=ctx.conversation_id,
                     status="open",
                 )
-                ctx.transferred = True
             except Exception:
                 pass
             return f"Transferencia parcial realizada. Erro: {exc}"

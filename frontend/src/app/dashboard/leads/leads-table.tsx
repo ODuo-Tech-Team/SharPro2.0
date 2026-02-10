@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRealtimeLeads } from "@/hooks/use-realtime";
 import {
   Table,
   TableBody,
@@ -26,6 +27,7 @@ interface Lead {
 }
 
 interface LeadsTableProps {
+  orgId: string;
   initialLeads: Lead[];
 }
 
@@ -41,13 +43,14 @@ const STATUS_MAP: Record<
 
 const ITEMS_PER_PAGE = 10;
 
-export function LeadsTable({ initialLeads }: LeadsTableProps) {
+export function LeadsTable({ orgId, initialLeads }: LeadsTableProps) {
+  const leads = useRealtimeLeads(orgId, initialLeads);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
 
   const filteredLeads = useMemo(() => {
-    let result = initialLeads;
+    let result = leads;
 
     // Text search
     if (search.trim()) {
@@ -65,7 +68,7 @@ export function LeadsTable({ initialLeads }: LeadsTableProps) {
     }
 
     return result;
-  }, [initialLeads, search, statusFilter]);
+  }, [leads, search, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / ITEMS_PER_PAGE));
   const paginatedLeads = filteredLeads.slice(

@@ -10,14 +10,14 @@ interface Lead {
   created_at: string;
 }
 
-async function getLeads(): Promise<Lead[]> {
+async function getLeadsData(): Promise<{ orgId: string; leads: Lead[] } | null> {
   const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return [];
+  if (!user) return null;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -25,7 +25,7 @@ async function getLeads(): Promise<Lead[]> {
     .eq("id", user.id)
     .single();
 
-  if (!profile) return [];
+  if (!profile) return null;
 
   const { data: leads } = await supabase
     .from("leads")
@@ -33,11 +33,19 @@ async function getLeads(): Promise<Lead[]> {
     .eq("organization_id", profile.organization_id)
     .order("created_at", { ascending: false });
 
-  return (leads ?? []) as Lead[];
+  return { orgId: profile.organization_id, leads: (leads ?? []) as Lead[] };
 }
 
 export default async function LeadsPage() {
-  const leads = await getLeads();
+  const data = await getLeadsData();
+
+  if (!data) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <p className="text-muted-foreground">Nao foi possivel carregar os leads.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -48,7 +56,7 @@ export default async function LeadsPage() {
         </p>
       </div>
 
-      <LeadsTable initialLeads={leads} />
+      <LeadsTable orgId={data.orgId} initialLeads={data.leads} />
     </div>
   );
 }
