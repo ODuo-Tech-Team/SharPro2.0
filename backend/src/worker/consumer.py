@@ -350,14 +350,18 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
                 account_id,
             )
         elif org_check.get("inbox_id"):
-            expected_inbox = org_check["inbox_id"]
-            if inbox_id and inbox_id != expected_inbox:
+            expected_inbox = int(org_check["inbox_id"])
+            if inbox_id and int(inbox_id) != expected_inbox:
                 logger.warning(
-                    "INBOX MISMATCH: message from inbox %d but org expects inbox %d. Skipping.",
+                    "INBOX MISMATCH: message from inbox %s but org expects inbox %s. Skipping.",
                     inbox_id,
                     expected_inbox,
                 )
                 return
+            else:
+                logger.info("Inbox check OK: inbox=%s matches org expected=%s.", inbox_id, expected_inbox)
+        else:
+            logger.info("Organization has no inbox_id configured - accepting all inboxes.")
 
         # --- Audio handling ---
         content: str = payload.get("content") or ""
