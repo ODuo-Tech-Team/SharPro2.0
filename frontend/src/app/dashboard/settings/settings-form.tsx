@@ -22,6 +22,8 @@ interface OrgSettings {
   system_prompt: string | null;
   chatwoot_url: string | null;
   chatwoot_token: string | null;
+  chatwoot_account_id: number | null;
+  inbox_id: number | null;
   openai_api_key: string | null;
 }
 
@@ -40,6 +42,12 @@ export function SettingsForm({ settings }: SettingsFormProps) {
   const [chatwootToken, setChatwootToken] = useState(
     settings.chatwoot_token ?? ""
   );
+  const [chatwootAccountId, setChatwootAccountId] = useState(
+    settings.chatwoot_account_id?.toString() ?? ""
+  );
+  const [inboxId, setInboxId] = useState(
+    settings.inbox_id?.toString() ?? ""
+  );
   const [openaiKey, setOpenaiKey] = useState(settings.openai_api_key ?? "");
   const [saving, setSaving] = useState(false);
 
@@ -53,6 +61,8 @@ export function SettingsForm({ settings }: SettingsFormProps) {
         system_prompt: systemPrompt || null,
         chatwoot_url: chatwootUrl || null,
         chatwoot_token: chatwootToken || null,
+        chatwoot_account_id: chatwootAccountId ? parseInt(chatwootAccountId) : null,
+        inbox_id: inboxId ? parseInt(inboxId) : null,
         openai_api_key: openaiKey || null,
       })
       .eq("id", settings.id);
@@ -144,6 +154,34 @@ export function SettingsForm({ settings }: SettingsFormProps) {
               value={chatwootToken}
               onChange={(e) => setChatwootToken(e.target.value)}
             />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="chatwoot_account_id">Account ID</Label>
+              <Input
+                id="chatwoot_account_id"
+                type="number"
+                placeholder="Ex: 26"
+                value={chatwootAccountId}
+                onChange={(e) => setChatwootAccountId(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                ID da conta no Chatwoot.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="inbox_id">Inbox ID</Label>
+              <Input
+                id="inbox_id"
+                type="number"
+                placeholder="Ex: 7"
+                value={inboxId}
+                onChange={(e) => setInboxId(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                ID da inbox do WhatsApp no Chatwoot.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

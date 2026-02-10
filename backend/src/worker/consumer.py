@@ -295,10 +295,23 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
         account_id: int = payload.get("account_id", 0)
         conversation: dict[str, Any] = payload.get("conversation", {})
         conversation_id: int = payload.get("conversation_id") or conversation.get("id", 0)
+        inbox_id: int = conversation.get("inbox_id", 0) or payload.get("inbox", {}).get("id", 0)
 
         if not account_id or not conversation_id:
             logger.warning("Missing account_id or conversation_id. Dropping message.")
             return
+
+        # Check if this message is from the correct inbox for this org
+        org_check = await supabase_svc.get_organization_by_account_id(account_id)
+        if org_check and org_check.get("inbox_id"):
+            expected_inbox = org_check["inbox_id"]
+            if inbox_id and inbox_id != expected_inbox:
+                logger.debug(
+                    "Message from inbox %d but org expects inbox %d. Skipping.",
+                    inbox_id,
+                    expected_inbox,
+                )
+                return
 
         # --- Audio handling ---
         content: str = payload.get("content") or ""
