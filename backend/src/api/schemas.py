@@ -86,3 +86,26 @@ class ChatwootWebhookPayload(BaseModel):
     sender: Optional[ChatwootSender] = None
     conversation: Optional[ChatwootConversation] = None
     attachments: list[ChatwootAttachment] = []
+
+
+# ---------------------------------------------------------------------------
+# Transfer webhook payload (Flow 2)
+# ---------------------------------------------------------------------------
+
+class TransferPayload(BaseModel):
+    """
+    Payload for the transfer-to-human endpoint.
+
+    sessionID format: {account_id}-{inbox_id}-{contact_id}-{conversation_id}-{phone}
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    nome: str
+    resumo: str
+    company: str = ""
+    team_id: Optional[int] = None
+    sessionID: str
+    url_chatwoot: Optional[str] = None
+    apikey_chatwoot: Optional[str] = None
+    fluxo_qualificacao: Optional[Any] = None

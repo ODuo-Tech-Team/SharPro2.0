@@ -4,7 +4,12 @@ SharkPro V2 - AI Engine (OpenAI ChatCompletion Wrapper)
 Encapsulates all interaction with the OpenAI API:
   - Tool / function-calling schema definitions
   - Chat completion requests
-  - Tool-call result processing (transfer_to_human, register_lead)
+  - Tool-call result processing
+
+Tools available:
+  - transfer_to_human_specialist: Transfer to human + Chatwoot + Kommo CRM
+  - register_lead: Register a new sales lead
+  - handle_customer_inactivity: Process stale tickets
 """
 
 from __future__ import annotations
@@ -19,6 +24,8 @@ from openai import AsyncOpenAI
 from src.config import get_settings
 from src.services import chatwoot as chatwoot_svc
 from src.services import supabase_client as supabase_svc
+from src.services.transfer import execute_transfer
+from src.services.inactivity import process_stale_atendimentos
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +37,35 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "transfer_to_human",
+            "name": "transfer_to_human_specialist",
             "description": (
-                "Transfer the conversation to a human agent. "
-                "Use this when the customer explicitly asks for a human, "
-                "or when the request is outside the AI's capabilities."
+                "Transfer the conversation to a human specialist. "
+                "Call this when the customer explicitly asks to speak with a human, "
+                "when the request is outside the AI's capabilities, or when the "
+                "customer needs specialized support. This will open the ticket, "
+                "assign to the support team, create CRM records, and notify agents."
             ),
             "parameters": {
                 "type": "object",
-                "properties": {},
-                "required": [],
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "description": (
+                            "Brief summary of the conversation so far. "
+                            "Include the customer's main request, context, and any "
+                            "relevant details the human agent should know."
+                        ),
+                    },
+                    "contact_name": {
+                        "type": "string",
+                        "description": "Full name of the contact/customer.",
+                    },
+                    "contact_phone": {
+                        "type": "string",
+                        "description": "Phone number of the contact (with country code, e.g. 5519999999999).",
+                    },
+                },
+                "required": ["summary"],
             },
         },
     },
@@ -67,6 +93,23 @@ TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "handle_customer_inactivity",
+            "description": (
+                "Process tickets that have been inactive/pending for too long. "
+                "Call this if you detect the customer has been unresponsive or "
+                "if there are stale tickets that need attention. This will open "
+                "the tickets, assign them to the support team, and notify agents."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -88,7 +131,14 @@ class ConversationContext:
     contact_id: Optional[int] = None
     history: list[dict[str, str]] = field(default_factory=list)
 
-    # Will be set to True if transfer_to_human is called
+    # Metadata from the atendimento (for transfer)
+    session_id: Optional[str] = None
+    company: Optional[str] = None
+    team_id: Optional[int] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+
+    # Will be set to True if transfer_to_human_specialist is called
     transferred: bool = False
 
 
@@ -106,30 +156,60 @@ async def _execute_tool_call(
 
     Side effects (API calls, DB writes) happen here.
     """
-    if name == "transfer_to_human":
-        logger.info(
-            "Tool: transfer_to_human for conversation %d (account %d).",
-            ctx.conversation_id,
-            ctx.account_id,
-        )
-        await chatwoot_svc.toggle_status(
-            url=ctx.chatwoot_url,
-            token=ctx.chatwoot_token,
-            account_id=ctx.account_id,
-            conversation_id=ctx.conversation_id,
-            status="open",
-        )
-        ctx.transferred = True
-        return "Conversation transferred to a human agent successfully."
 
+    # ---------------------------------------------------------------
+    # Tool 1: transfer_to_human_specialist
+    # ---------------------------------------------------------------
+    if name == "transfer_to_human_specialist":
+        summary = arguments.get("summary", "Cliente solicitou atendimento humano.")
+        contact_name = arguments.get("contact_name") or ctx.contact_name or "Desconhecido"
+        contact_phone = arguments.get("contact_phone") or ctx.contact_phone or ""
+
+        logger.info(
+            "Tool: transfer_to_human_specialist for conversation %d (account %d).",
+            ctx.conversation_id, ctx.account_id,
+        )
+
+        # Build sessionID if not available
+        session_id = ctx.session_id
+        if not session_id:
+            session_id = f"{ctx.account_id}-0-{ctx.contact_id or 0}-{ctx.conversation_id}-{contact_phone}"
+
+        try:
+            result = await execute_transfer(
+                nome=contact_name,
+                resumo=summary,
+                company=ctx.company or "",
+                team_id=ctx.team_id,
+                session_id=session_id,
+                url_chatwoot_override=ctx.chatwoot_url,
+                apikey_chatwoot_override=ctx.chatwoot_token,
+            )
+            ctx.transferred = True
+            return result
+        except Exception as exc:
+            logger.exception("transfer_to_human_specialist failed.")
+            # Fallback: at least toggle status
+            try:
+                await chatwoot_svc.toggle_status(
+                    url=ctx.chatwoot_url, token=ctx.chatwoot_token,
+                    account_id=ctx.account_id, conversation_id=ctx.conversation_id,
+                    status="open",
+                )
+                ctx.transferred = True
+            except Exception:
+                pass
+            return f"Transferencia parcial realizada. Erro: {exc}"
+
+    # ---------------------------------------------------------------
+    # Tool 2: register_lead
+    # ---------------------------------------------------------------
     if name == "register_lead":
         lead_name: str = arguments.get("name", "")
         lead_phone: str = arguments.get("phone", "")
         logger.info(
             "Tool: register_lead('%s', '%s') for org %s.",
-            lead_name,
-            lead_phone,
-            ctx.organization_id,
+            lead_name, lead_phone, ctx.organization_id,
         )
         await supabase_svc.insert_lead(
             org_id=ctx.organization_id,
@@ -137,10 +217,22 @@ async def _execute_tool_call(
             phone=lead_phone,
             contact_id=ctx.contact_id,
         )
-        return f"Lead '{lead_name}' registered successfully."
+        return f"Lead '{lead_name}' registrado com sucesso."
+
+    # ---------------------------------------------------------------
+    # Tool 3: handle_customer_inactivity
+    # ---------------------------------------------------------------
+    if name == "handle_customer_inactivity":
+        logger.info("Tool: handle_customer_inactivity triggered.")
+        try:
+            count = await process_stale_atendimentos()
+            return f"{count} atendimento(s) inativos processados com sucesso."
+        except Exception as exc:
+            logger.exception("handle_customer_inactivity failed.")
+            return f"Erro ao processar inatividade: {exc}"
 
     logger.warning("Unknown tool called: %s", name)
-    return f"Unknown tool: {name}"
+    return f"Ferramenta desconhecida: {name}"
 
 
 # ---------------------------------------------------------------------------
@@ -183,8 +275,6 @@ async def run_completion(ctx: ConversationContext) -> str:
     assistant_message = response.choices[0].message
 
     # ----- Handle tool calls (iterative loop) -----
-    # OpenAI may return one or more tool_calls; we execute them all,
-    # feed the results back, and request another completion.
     max_tool_rounds = 5
     current_round = 0
 

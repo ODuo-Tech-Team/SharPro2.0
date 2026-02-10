@@ -5,6 +5,9 @@ Connects to RabbitMQ and Redis, consumes incoming Chatwoot messages,
 implements the debounce-buffer pattern, transcribes audio, runs AI,
 tracks sales, and sends responses back through Chatwoot.
 
+Also consumes the `replay_to_message` queue (Flow 1) and runs the
+inactivity cron (Flow 3).
+
 Run with:
     python -m src.worker.consumer
 """
@@ -30,6 +33,7 @@ from src.config import Settings, get_settings
 from src.services import chatwoot as chatwoot_svc
 from src.services import redis_client as redis_svc
 from src.services import supabase_client as supabase_svc
+from src.services.inactivity import run_inactivity_cron
 from src.worker.ai_engine import ConversationContext, run_completion
 
 # ---------------------------------------------------------------------------
@@ -209,7 +213,12 @@ async def _process_batch(
         sender = payload.get("sender", {})
         contact_id: Optional[int] = sender.get("id") if sender else None
 
-        # 5. Run AI
+        # 5. Lookup empresa for extra context (team_id, company, session info)
+        empresa = await supabase_svc.get_empresa_by_account_and_company(
+            account_id, org.get("name", "")
+        )
+
+        # 6. Run AI
         ctx = ConversationContext(
             organization_id=org["id"],
             chatwoot_url=org["chatwoot_url"],
@@ -220,11 +229,13 @@ async def _process_batch(
             user_message=combined_text,
             contact_id=contact_id,
             history=history,
+            company=org.get("name"),
+            team_id=empresa.get("team_id") if empresa else None,
         )
 
         ai_response = await run_completion(ctx)
 
-        # 6. Send response to Chatwoot (unless transferred)
+        # 7. Send response to Chatwoot (unless transferred)
         if not ctx.transferred and ai_response.strip():
             await chatwoot_svc.send_message(
                 url=org["chatwoot_url"],
@@ -234,7 +245,7 @@ async def _process_batch(
                 content=ai_response,
             )
 
-        # 7. Sales tracking
+        # 8. Sales tracking
         await _check_and_record_sale(payload, org)
 
     except Exception:
@@ -252,15 +263,9 @@ async def _schedule_debounce(
 ) -> None:
     """
     Wait for the debounce TTL to expire, then process the batch.
-
-    If a new message arrives for the same conversation before the timer
-    fires, the old task is cancelled and a new one is spawned (the Redis
-    buffer EXPIRE is also reset by the caller).
     """
     try:
         await asyncio.sleep(settings.debounce_ttl_seconds)
-        # TTL elapsed -- check if the buffer still exists
-        # (it might have been consumed by another process in rare edge-cases)
         still_present = await redis_svc.buffer_exists(conversation_id)
         if still_present:
             await _process_batch(conversation_id, account_id, payload)
@@ -273,12 +278,12 @@ async def _schedule_debounce(
 
 
 # ---------------------------------------------------------------------------
-# Message handler
+# Message handler (incoming messages from Chatwoot)
 # ---------------------------------------------------------------------------
 
 async def _on_message(message: AbstractIncomingMessage) -> None:
     """
-    Callback for every message consumed from RabbitMQ.
+    Callback for every message consumed from the incoming_messages queue.
 
     Implements the debounce-buffer pattern:
       - Push content to Redis list ``buffer:{conversation_id}``
@@ -350,6 +355,68 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Reply-to-message handler (Flow 1: RabbitMQ replay_to_message queue)
+# ---------------------------------------------------------------------------
+
+async def _on_reply_message(message: AbstractIncomingMessage) -> None:
+    """
+    Callback for messages from the replay_to_message queue.
+
+    Replicates n8n Flow 1:
+    - If abrir_atendimento: toggle_status to 'open', then send message
+    - Otherwise: just send the message
+    - Supports in_reply_to for message threading
+    """
+    async with message.process():
+        try:
+            payload: dict[str, Any] = json.loads(message.body.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.error("Could not decode reply message body. Dropping.")
+            return
+
+        text: str = payload.get("text", "")
+        conversation_id: int = payload.get("conversation_id", 0)
+        url_chatwoot: str = payload.get("urlChatwoot", "")
+        api_token: str = payload.get("apitoken", "")
+        account_id: int = payload.get("account_id", 0)
+        message_id: int | None = payload.get("message_id")
+        private: bool = payload.get("private", False)
+        abrir_atendimento: bool = payload.get("abrir_atendimento", False)
+
+        if not text or not conversation_id or not url_chatwoot or not api_token:
+            logger.warning("Reply message missing required fields. Dropping.")
+            return
+
+        logger.info(
+            "Reply message for conversation %d (abrir=%s, private=%s).",
+            conversation_id, abrir_atendimento, private,
+        )
+
+        try:
+            # If abrir_atendimento: open conversation first
+            if abrir_atendimento:
+                await chatwoot_svc.toggle_status(
+                    url=url_chatwoot, token=api_token,
+                    account_id=account_id, conversation_id=conversation_id,
+                    status="open",
+                )
+
+            # Send the message (with optional in_reply_to)
+            await chatwoot_svc.send_message_with_reply(
+                url=url_chatwoot, token=api_token,
+                account_id=account_id, conversation_id=conversation_id,
+                content=text,
+                message_id=message_id,
+                private=private,
+            )
+
+            logger.info("Reply sent to conversation %d.", conversation_id)
+
+        except Exception:
+            logger.exception("Failed to process reply for conversation %d.", conversation_id)
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -373,14 +440,13 @@ async def main() -> None:
             durable=True,
         )
 
-        # Declare queue
+        # --- Queue 1: incoming_messages (Chatwoot webhook messages) ---
         queue = await channel.declare_queue(
             settings.rabbitmq_queue,
             durable=True,
         )
-
-        # Bind queue to exchange
         await queue.bind(exchange, routing_key=settings.rabbitmq_routing_key)
+        await queue.consume(_on_message)
         logger.info(
             "Queue '%s' bound to exchange '%s' with key '%s'.",
             settings.rabbitmq_queue,
@@ -388,12 +454,34 @@ async def main() -> None:
             settings.rabbitmq_routing_key,
         )
 
-        # Start consuming
-        await queue.consume(_on_message)
+        # --- Queue 2: replay_to_message (Flow 1: reply with text) ---
+        reply_queue = await channel.declare_queue(
+            settings.rabbitmq_reply_queue,
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "erros",
+                "x-dead-letter-routing-key": "erros",
+                "x-message-ttl": 300000,
+            },
+        )
+        await reply_queue.consume(_on_reply_message)
+        logger.info("Queue '%s' is now consuming reply messages.", settings.rabbitmq_reply_queue)
+
+        # --- Start inactivity cron (Flow 3) ---
+        cron_task = asyncio.create_task(run_inactivity_cron(_shutdown_event))
+        logger.info("Inactivity cron task started.")
+
         logger.info("Worker is now consuming messages. Press Ctrl+C to stop.")
 
         # Wait until shutdown signal
         await _shutdown_event.wait()
+
+        # Cancel cron task
+        cron_task.cancel()
+        try:
+            await cron_task
+        except asyncio.CancelledError:
+            pass
 
     # Cleanup
     await redis_svc.close()

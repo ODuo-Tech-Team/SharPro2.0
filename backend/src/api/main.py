@@ -21,6 +21,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_settings
 from src.services import rabbitmq as rmq
+from src.services.transfer import execute_transfer
+from src.services.inactivity import process_stale_atendimentos
+from src.api.schemas import TransferPayload
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -141,3 +144,47 @@ async def chatwoot_webhook(request: Request) -> Response:
         )
 
     return Response(content='{"detail":"queued"}', status_code=200, media_type="application/json")
+
+
+@app.post("/webhooks/transfer", status_code=200)
+async def transfer_webhook(payload: TransferPayload) -> dict[str, str]:
+    """
+    Transfer a conversation to a human specialist.
+
+    This endpoint replicates n8n Flow 2 (Transfer Webhook).
+    Called by the AI tool or externally when a transfer is needed.
+    """
+    logger.info(
+        "Transfer webhook received: nome='%s', sessionID='%s', company='%s'.",
+        payload.nome, payload.sessionID, payload.company,
+    )
+
+    try:
+        result = await execute_transfer(
+            nome=payload.nome,
+            resumo=payload.resumo,
+            company=payload.company,
+            team_id=payload.team_id,
+            session_id=payload.sessionID,
+            url_chatwoot_override=payload.url_chatwoot,
+            apikey_chatwoot_override=payload.apikey_chatwoot,
+        )
+        return {"resposta": result}
+    except Exception:
+        logger.exception("Transfer webhook failed.")
+        return {"resposta": "Erro na transferencia."}
+
+
+@app.post("/cron/inactivity", status_code=200)
+async def inactivity_endpoint() -> dict[str, Any]:
+    """
+    Manually trigger inactivity check.
+
+    Can be called by an external cron or monitoring tool.
+    """
+    try:
+        count = await process_stale_atendimentos()
+        return {"processed": count, "status": "ok"}
+    except Exception:
+        logger.exception("Inactivity endpoint failed.")
+        return {"processed": 0, "status": "error"}

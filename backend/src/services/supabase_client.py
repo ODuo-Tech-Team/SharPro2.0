@@ -143,3 +143,124 @@ async def update_lead_conversion(
     except Exception:
         logger.exception("Error updating lead %s conversion.", lead_id)
         raise
+
+
+# ---------------------------------------------------------------------------
+# Empresas (legacy table from n8n)
+# ---------------------------------------------------------------------------
+
+async def get_empresa_by_account_and_company(
+    account_id: int,
+    company: str,
+) -> Optional[dict[str, Any]]:
+    """Look up an empresa by Chatwoot account_id and company name."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("empresas")
+            .select("*")
+            .eq("acountId", account_id)
+            .eq("empresa", company)
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]
+        logger.warning("No empresa found for account_id=%d, company='%s'.", account_id, company)
+        return None
+    except Exception:
+        logger.exception("Error querying empresa for account_id=%d.", account_id)
+        raise
+
+
+async def get_empresa_by_inbox_and_account(
+    inbox_id: int,
+    account_id: int,
+) -> Optional[dict[str, Any]]:
+    """Look up an empresa by inbox_id and account_id."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("empresas")
+            .select("*")
+            .eq("inbox", inbox_id)
+            .eq("acountId", account_id)
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]
+        logger.warning("No empresa found for inbox=%d, account_id=%d.", inbox_id, account_id)
+        return None
+    except Exception:
+        logger.exception("Error querying empresa by inbox=%d.", inbox_id)
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Atendimentos (legacy table from n8n)
+# ---------------------------------------------------------------------------
+
+async def get_atendimento_by_session(session_id: str) -> Optional[dict[str, Any]]:
+    """Look up an atendimento by sessionid."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("atendimentos")
+            .select("*")
+            .eq("sessionid", session_id)
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]
+        return None
+    except Exception:
+        logger.exception("Error querying atendimento for session='%s'.", session_id)
+        raise
+
+
+async def update_atendimento(
+    atendimento_id: int,
+    updates: dict[str, Any],
+) -> dict[str, Any]:
+    """Update fields on an atendimento row."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("atendimentos")
+            .update(updates)
+            .eq("id", atendimento_id)
+            .execute()
+        )
+        result = response.data[0] if response.data else {}
+        logger.info("Atendimento %d updated: %s", atendimento_id, list(updates.keys()))
+        return result
+    except Exception:
+        logger.exception("Error updating atendimento %d.", atendimento_id)
+        raise
+
+
+async def get_stale_atendimentos(threshold_iso: str) -> list[dict[str, Any]]:
+    """
+    Get all atendimentos with status 'pending' and lastedupdated <= threshold.
+
+    Parameters
+    ----------
+    threshold_iso: ISO 8601 timestamp string (e.g. '2025-01-01T12:00:00')
+    """
+    try:
+        client = _get_client()
+        response = (
+            client.table("atendimentos")
+            .select("*")
+            .eq("statusAtendimento", "pending")
+            .lte("lastedupdated", threshold_iso)
+            .execute()
+        )
+        results = response.data or []
+        logger.info("Found %d stale atendimentos (threshold=%s).", len(results), threshold_iso)
+        return results
+    except Exception:
+        logger.exception("Error querying stale atendimentos.")
+        raise

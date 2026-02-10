@@ -34,6 +34,28 @@ class Settings(BaseSettings):
     # -- OpenAI --
     openai_api_key: str
 
+    # -- Kommo CRM (optional) --
+    kommo_subdomain: str = ""
+    kommo_token: str = ""
+    kommo_pipeline_id: int = 0
+    kommo_responsible_user_id: int = 0
+    kommo_phone_field_id: int = 0
+    kommo_phone_enum_id: int = 0
+    kommo_lead_name_field_id: int = 0
+    kommo_lead_nome_field_id: int = 0
+    kommo_lead_origem_field_id: int = 0
+
+    # -- Notification conversations (Chatwoot) --
+    notification_conversation_ids: str = ""
+
+    # -- Inactivity cron --
+    inactivity_check_interval_minutes: int = 15
+    inactivity_threshold_minutes: int = 30
+    inactivity_default_team_id: int = 5
+
+    # -- RabbitMQ queues --
+    rabbitmq_reply_queue: str = "replay_to_message"
+
     # -- Application Defaults --
     rabbitmq_exchange: str = "bot_events"
     rabbitmq_queue: str = "incoming_messages"
