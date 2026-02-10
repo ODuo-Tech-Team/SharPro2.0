@@ -214,11 +214,19 @@ async def _process_batch(
         contact_id: Optional[int] = sender.get("id") if sender else None
 
         # 5. Lookup empresa for extra context (team_id, company, session info)
-        empresa = await supabase_svc.get_empresa_by_account_and_company(
-            account_id, org.get("name", "")
-        )
+        empresa = None
+        try:
+            empresa = await supabase_svc.get_empresa_by_account_and_company(
+                account_id, org.get("name", "")
+            )
+        except Exception:
+            logger.warning("Could not fetch empresa for account %d (non-critical).", account_id)
 
         # 6. Run AI
+        logger.info(
+            "Running AI for conversation %d (org=%s, empresa=%s).",
+            conversation_id, org.get("name"), "found" if empresa else "none",
+        )
         ctx = ConversationContext(
             organization_id=org["id"],
             chatwoot_url=org["chatwoot_url"],
@@ -233,23 +241,46 @@ async def _process_batch(
             team_id=empresa.get("team_id") if empresa else None,
         )
 
-        ai_response = await run_completion(ctx)
+        try:
+            ai_response = await run_completion(ctx)
+        except Exception:
+            logger.exception(
+                "AI COMPLETION FAILED for conversation %d. Check OpenAI key and model.",
+                conversation_id,
+            )
+            return
+
+        logger.info(
+            "AI response ready: %d chars, transferred=%s, conversation=%d.",
+            len(ai_response), ctx.transferred, conversation_id,
+        )
 
         # 7. Send response to Chatwoot (unless transferred)
         if not ctx.transferred and ai_response.strip():
-            await chatwoot_svc.send_message(
-                url=org["chatwoot_url"],
-                token=org["chatwoot_token"],
-                account_id=account_id,
-                conversation_id=conversation_id,
-                content=ai_response,
-            )
+            try:
+                await chatwoot_svc.send_message(
+                    url=org["chatwoot_url"],
+                    token=org["chatwoot_token"],
+                    account_id=account_id,
+                    conversation_id=conversation_id,
+                    content=ai_response,
+                )
+                logger.info("Response SENT to conversation %d.", conversation_id)
+            except Exception:
+                logger.exception(
+                    "FAILED TO SEND response to Chatwoot conversation %d.",
+                    conversation_id,
+                )
+        elif ctx.transferred:
+            logger.info("Conversation %d transferred - no AI response sent.", conversation_id)
+        else:
+            logger.warning("Empty AI response for conversation %d.", conversation_id)
 
         # 8. Sales tracking
         await _check_and_record_sale(payload, org)
 
     except Exception:
-        logger.exception("Error processing batch for conversation %d.", conversation_id)
+        logger.exception("CRITICAL ERROR processing batch for conversation %d.", conversation_id)
 
 
 # ---------------------------------------------------------------------------
@@ -306,13 +337,23 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
             logger.warning("Missing account_id or conversation_id. Dropping message.")
             return
 
+        logger.info(
+            "Message received: account=%d, conversation=%d, inbox=%d.",
+            account_id, conversation_id, inbox_id,
+        )
+
         # Check if this message is from the correct inbox for this org
         org_check = await supabase_svc.get_organization_by_account_id(account_id)
-        if org_check and org_check.get("inbox_id"):
+        if not org_check:
+            logger.error(
+                "NO ORGANIZATION FOUND for account_id=%d. Message will fail in processing.",
+                account_id,
+            )
+        elif org_check.get("inbox_id"):
             expected_inbox = org_check["inbox_id"]
             if inbox_id and inbox_id != expected_inbox:
-                logger.debug(
-                    "Message from inbox %d but org expects inbox %d. Skipping.",
+                logger.warning(
+                    "INBOX MISMATCH: message from inbox %d but org expects inbox %d. Skipping.",
                     inbox_id,
                     expected_inbox,
                 )
