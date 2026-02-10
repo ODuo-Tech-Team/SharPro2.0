@@ -109,14 +109,16 @@ async def chatwoot_webhook(request: Request) -> Response:
         return Response(content='{"detail":"invalid json"}', status_code=400, media_type="application/json")
 
     event: str = body.get("event", "")
-    message_type: int | None = body.get("message_type")
+    message_type = body.get("message_type")
 
     # --- Gate: only process incoming messages ---
     if event != "message_created":
         logger.info("Ignoring event '%s' (not message_created).", event)
         return Response(content='{"detail":"event ignored"}', status_code=200, media_type="application/json")
 
-    if message_type != 0:
+    # Chatwoot sends message_type as int (0) or string ("incoming")
+    is_incoming = message_type in (0, "incoming")
+    if not is_incoming:
         logger.info("Ignoring non-incoming message (message_type=%s, event=%s).", message_type, event)
         return Response(content='{"detail":"non-incoming ignored"}', status_code=200, media_type="application/json")
 
