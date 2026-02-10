@@ -328,13 +328,33 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
             logger.error("Could not decode message body. Dropping.")
             return
 
-        account_id: int = payload.get("account_id", 0)
+        # Extract IDs from multiple possible payload locations
         conversation: dict[str, Any] = payload.get("conversation", {})
-        conversation_id: int = payload.get("conversation_id") or conversation.get("id", 0)
-        inbox_id: int = conversation.get("inbox_id", 0) or payload.get("inbox", {}).get("id", 0)
+        account: dict[str, Any] = payload.get("account", {})
+
+        account_id = (
+            payload.get("account_id")
+            or account.get("id")
+            or conversation.get("account_id")
+            or 0
+        )
+        conversation_id = (
+            payload.get("conversation_id")
+            or conversation.get("id")
+            or conversation.get("display_id")
+            or 0
+        )
+        inbox_id = (
+            conversation.get("inbox_id")
+            or payload.get("inbox", {}).get("id")
+            or 0
+        )
 
         if not account_id or not conversation_id:
-            logger.warning("Missing account_id or conversation_id. Dropping message.")
+            logger.warning(
+                "Missing account_id or conversation_id. Keys: %s. Dropping.",
+                list(payload.keys()),
+            )
             return
 
         logger.info(
