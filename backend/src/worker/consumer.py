@@ -268,6 +268,9 @@ async def _process_batch(
         # 8. Send response to Chatwoot (unless transferred)
         if not ctx.transferred and ai_response.strip():
             try:
+                # Mark that AI is sending — so the webhook knows this
+                # outgoing message is from the bot, not a human agent.
+                await redis_svc.set_ai_responding(conversation_id)
                 await chatwoot_svc.send_message(
                     url=org["chatwoot_url"],
                     token=org["chatwoot_token"],

@@ -162,17 +162,27 @@ async def chatwoot_webhook(request: Request) -> Response:
 
     # ------------------------------------------------------------------
     # Outgoing message (human agent) → set human takeover flag
+    # But SKIP if the AI itself just sent this message.
     # ------------------------------------------------------------------
     is_outgoing = message_type in (1, "outgoing")
     # Ignore private notes (internal messages between agents)
     is_private = body.get("private", False)
 
     if is_outgoing and not is_private and conversation_id:
+        conv_id = int(conversation_id)
+        # Check if this outgoing message was sent by the AI (not a human)
+        if await redis_svc.is_ai_responding(conv_id):
+            logger.info(
+                "Outgoing message for conversation %s is from AI (not human). Ignoring.",
+                conversation_id,
+            )
+            return Response(content='{"detail":"ai message ignored"}', status_code=200, media_type="application/json")
+
         logger.info(
             "Human agent message detected for conversation %s. Setting takeover flag.",
             conversation_id,
         )
-        await redis_svc.set_human_takeover(int(conversation_id))
+        await redis_svc.set_human_takeover(conv_id)
         return Response(content='{"detail":"human takeover set"}', status_code=200, media_type="application/json")
 
     # ------------------------------------------------------------------

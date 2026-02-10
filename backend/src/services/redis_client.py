@@ -79,6 +79,26 @@ async def buffer_exists(conversation_id: int) -> bool:
     return bool(await r.exists(key))
 
 
+async def set_ai_responding(conversation_id: int, ttl_seconds: int = 15) -> None:
+    """
+    Mark that the AI is about to send a message for this conversation.
+
+    The webhook uses this to distinguish AI-sent messages from human agent
+    messages (both arrive as message_type=1 outgoing).
+    Short TTL (15s) - just enough to cover the API round-trip.
+    """
+    r = await get_redis()
+    key = f"ai_responding:{conversation_id}"
+    await r.set(key, "1", ex=ttl_seconds)
+
+
+async def is_ai_responding(conversation_id: int) -> bool:
+    """Check whether the AI recently sent a message for this conversation."""
+    r = await get_redis()
+    key = f"ai_responding:{conversation_id}"
+    return bool(await r.exists(key))
+
+
 async def set_human_takeover(conversation_id: int, ttl_seconds: int = 86400) -> None:
     """
     Flag a conversation as taken over by a human agent.
