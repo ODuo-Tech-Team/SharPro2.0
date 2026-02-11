@@ -138,18 +138,22 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
             logger.warning("Failed to set webhook for '%s'. Can be configured later.", instance_name)
 
     # Step 7: Connect instance (generates QR code)
-    qr_data = {}
+    qr_code = ""
+    pairing_code = ""
     if uazapi_token:
         try:
             qr_data = await uazapi_svc.connect_instance(uazapi_token)
+            inst_data = qr_data.get("instance", {})
+            qr_code = inst_data.get("qrcode", "") or qr_data.get("qrcode", "")
+            pairing_code = inst_data.get("paircode", "") or qr_data.get("pairingCode", "")
         except Exception:
             logger.warning("Failed to start connection for '%s'.", instance_name)
 
     return {
         "status": "ok",
         "instance": instance,
-        "qrcode": qr_data.get("qrcode", qr_data.get("base64", "")),
-        "pairingCode": qr_data.get("pairingCode", ""),
+        "qrcode": qr_code,
+        "pairingCode": pairing_code,
     }
 
 
@@ -165,10 +169,13 @@ async def get_qr_code(instance_id: str) -> dict[str, Any]:
 
     try:
         qr_data = await uazapi_svc.connect_instance(instance["uazapi_token"])
+        inst_data = qr_data.get("instance", {})
+        qr_code = inst_data.get("qrcode", "") or qr_data.get("qrcode", "")
+        pairing_code = inst_data.get("paircode", "") or qr_data.get("pairingCode", "")
         return {
             "status": "ok",
-            "qrcode": qr_data.get("qrcode", qr_data.get("base64", "")),
-            "pairingCode": qr_data.get("pairingCode", ""),
+            "qrcode": qr_code,
+            "pairingCode": pairing_code,
         }
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Uazapi error: {exc}")
@@ -186,9 +193,12 @@ async def get_instance_status(instance_id: str) -> dict[str, Any]:
 
     try:
         status_data = await uazapi_svc.get_instance_status(instance["uazapi_token"])
-        is_connected = status_data.get("connected", False) or status_data.get("status") == "CONNECTED"
+        # Uazapi nests data inside "instance" key
+        inst_info = status_data.get("instance", {})
+        raw_status = inst_info.get("status", status_data.get("status", ""))
+        is_connected = raw_status in ("open", "CONNECTED") or status_data.get("connected", False)
         new_status = "connected" if is_connected else "disconnected"
-        phone = status_data.get("phoneNumber", "") or status_data.get("phone", "")
+        phone = inst_info.get("phoneNumber", "") or inst_info.get("phone", "") or status_data.get("phone", "")
 
         updates: dict[str, Any] = {"status": new_status}
         if phone and phone != instance.get("phone_number"):

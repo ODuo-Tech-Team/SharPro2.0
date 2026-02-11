@@ -367,11 +367,15 @@ async def chatwoot_conversations_proxy(
     account_id: int,
     status: str = "open",
     page: int = 1,
+    inbox_id: int | None = None,
 ) -> dict[str, Any]:
-    """Proxy Chatwoot conversations list with pagination and status filter."""
+    """Proxy Chatwoot conversations list with pagination, status and inbox filter."""
     org = await supabase_svc.get_organization_by_account_id(account_id)
     if not org:
         return {"error": "Organization not found"}
+
+    # Use org's inbox_id if not explicitly provided
+    effective_inbox_id = inbox_id or org.get("inbox_id")
 
     data = await chatwoot_svc.list_conversations(
         url=org["chatwoot_url"],
@@ -379,6 +383,7 @@ async def chatwoot_conversations_proxy(
         account_id=account_id,
         status=status,
         page=page,
+        inbox_id=effective_inbox_id,
     )
     return data
 

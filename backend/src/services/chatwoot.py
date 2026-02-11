@@ -333,6 +333,7 @@ async def list_conversations(
     account_id: int,
     status: str = "open",
     page: int = 1,
+    inbox_id: int | None = None,
 ) -> dict[str, Any]:
     """
     List conversations from Chatwoot with pagination.
@@ -340,7 +341,9 @@ async def list_conversations(
     Returns the raw Chatwoot response with data.payload and data.meta.
     """
     endpoint = f"{url}/api/v1/accounts/{account_id}/conversations"
-    params = {"status": status, "page": page}
+    params: dict[str, Any] = {"status": status, "page": page}
+    if inbox_id:
+        params["inbox_id"] = inbox_id
     client = _get_client()
     try:
         response = await client.get(endpoint, params=params, headers=_headers(token))
