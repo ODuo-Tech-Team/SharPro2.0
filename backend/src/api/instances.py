@@ -148,19 +148,7 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, A
 
     settings = get_settings()
 
-    # Step 1: Get the inbox name from Chatwoot (Uazapi needs it for nameInbox)
-    inbox_name = "WhatsApp"
-    try:
-        inbox_data = await chatwoot_svc.get_inbox(
-            url=chatwoot_url, token=chatwoot_token,
-            account_id=chatwoot_account_id, inbox_id=inbox_id,
-        )
-        inbox_name = inbox_data.get("name", "WhatsApp")
-        logger.info("Inbox %d name: '%s'", inbox_id, inbox_name)
-    except Exception as exc:
-        logger.warning("Could not fetch inbox name, using fallback: %s", exc)
-
-    # Step 2: Configure Uazapi → Chatwoot integration (autoCreate=false)
+    # Step 1: Configure Uazapi → Chatwoot (same payload as n8n node)
     uazapi_ok = False
     try:
         result = await uazapi_svc.configure_chatwoot(
@@ -169,7 +157,6 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, A
             chatwoot_token=chatwoot_token,
             account_id=chatwoot_account_id,
             inbox_id=inbox_id,
-            name_inbox=inbox_name,
         )
         uazapi_ok = True
         logger.info("Uazapi Chatwoot config OK for instance %s: %s", instance_id, result)
