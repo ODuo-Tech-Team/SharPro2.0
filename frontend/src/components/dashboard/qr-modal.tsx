@@ -62,7 +62,7 @@ export function QrModal({ instanceId, open, onClose }: QrModalProps) {
 
   useEffect(() => {
     if (!open) return;
-    const interval = setInterval(fetchQr, 30000);
+    const interval = setInterval(() => fetchQr(), 30000);
     return () => clearInterval(interval);
   }, [open, instanceId]);
 
@@ -89,7 +89,7 @@ export function QrModal({ instanceId, open, onClose }: QrModalProps) {
           ) : error ? (
             <div className="text-center">
               <p className="mb-2 text-sm text-destructive">{error}</p>
-              <Button size="sm" variant="outline" onClick={fetchQr} className="gap-1.5">
+              <Button size="sm" variant="outline" onClick={() => fetchQr()} className="gap-1.5">
                 <RefreshCw className="h-3.5 w-3.5" />
                 Tentar novamente
               </Button>
@@ -106,7 +106,7 @@ export function QrModal({ instanceId, open, onClose }: QrModalProps) {
         </div>
 
         <div className="mt-4 flex justify-between">
-          <Button size="sm" variant="ghost" onClick={fetchQr} disabled={loading} className="gap-1.5">
+          <Button size="sm" variant="ghost" onClick={() => fetchQr()} disabled={loading} className="gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" />
             Atualizar QR
           </Button>
