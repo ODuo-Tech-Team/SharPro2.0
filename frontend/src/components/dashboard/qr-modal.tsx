@@ -6,12 +6,13 @@ import { Loader2, X, RefreshCw, CheckCircle, Link2 } from "lucide-react";
 
 interface QrModalProps {
   instanceId: string;
+  accountId: number;
   open: boolean;
   onClose: () => void;
   onConnected?: () => void;
 }
 
-export function QrModal({ instanceId, open, onClose, onConnected }: QrModalProps) {
+export function QrModal({ instanceId, accountId, open, onClose, onConnected }: QrModalProps) {
   const [step, setStep] = useState<"chatwoot" | "qr">("chatwoot");
   const [chatwootConnecting, setChatwootConnecting] = useState(false);
   const [chatwootConnected, setChatwootConnected] = useState(false);
@@ -27,7 +28,7 @@ export function QrModal({ instanceId, open, onClose, onConnected }: QrModalProps
     setChatwootError("");
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/connect-chatwoot`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/connect-chatwoot?account_id=${accountId}`,
         { method: "POST" }
       );
       if (!res.ok) {
