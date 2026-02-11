@@ -1,42 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { ClientsTable } from "@/components/admin/clients-table";
+import { AdminClientsContent } from "@/components/admin/admin-clients-content";
 
-async function fetchAdminData(accessToken: string) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-    "Content-Type": "application/json",
-  };
-
-  const [orgsRes, plansRes] = await Promise.all([
-    fetch(`${apiUrl}/api/admin/organizations`, { headers, cache: "no-store" }),
-    fetch(`${apiUrl}/api/admin/plans`, { headers, cache: "no-store" }),
-  ]);
-
-  const orgsData = orgsRes.ok ? await orgsRes.json() : { organizations: [] };
-  const plansData = plansRes.ok ? await plansRes.json() : { plans: [] };
-
-  return {
-    organizations: orgsData.organizations || [],
-    plans: plansData.plans || [],
-  };
-}
-
-export default async function AdminClientsPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
-    redirect("/login");
-  }
-
-  const { organizations, plans } = await fetchAdminData(session.access_token);
-
+export default function AdminClientsPage() {
   return (
     <div className="space-y-6">
       <div>
@@ -46,11 +10,7 @@ export default async function AdminClientsPage() {
         </p>
       </div>
 
-      <ClientsTable
-        organizations={organizations}
-        plans={plans}
-        accessToken={session.access_token}
-      />
+      <AdminClientsContent />
     </div>
   );
 }

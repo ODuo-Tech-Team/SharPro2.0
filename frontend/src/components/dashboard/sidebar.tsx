@@ -69,7 +69,7 @@ export function Sidebar({ isSuperAdmin }: SidebarProps) {
           alt="SharkPro"
           width={160}
           height={60}
-          className="object-contain"
+          className="object-contain mix-blend-screen"
         />
       </div>
 
