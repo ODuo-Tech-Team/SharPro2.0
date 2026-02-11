@@ -31,6 +31,27 @@ from src.services.inactivity import process_stale_atendimentos
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Internal note instruction (appended to every system prompt)
+# ---------------------------------------------------------------------------
+
+INTERNAL_NOTE_INSTRUCTION = (
+    "\n\n[INSTRUCAO DO SISTEMA - NOTAS INTERNAS]\n"
+    "Quando voce quiser fazer uma observacao interna para o agente humano "
+    "(analise do cliente, feedback sobre a conversa, sugestoes de abordagem, "
+    "alertas sobre comportamento do cliente, etc.), escreva essa parte "
+    "dentro das tags [NOTA_INTERNA] e [/NOTA_INTERNA].\n"
+    "Exemplo:\n"
+    "[NOTA_INTERNA]O cliente esta demonstrando interesse no produto X. "
+    "Sugerir promocao ativa.[/NOTA_INTERNA]\n"
+    "O texto FORA dessas tags sera enviado ao cliente normalmente. "
+    "O texto DENTRO sera visivel apenas para os agentes internos.\n"
+    "Use notas internas para: analises, feedbacks, alertas, sugestoes de venda, "
+    "observacoes sobre o comportamento do cliente.\n"
+    "NUNCA envie analises internas diretamente ao cliente.\n"
+    "[/INSTRUCAO DO SISTEMA]"
+)
+
+# ---------------------------------------------------------------------------
 # Tool definitions (OpenAI function-calling schema)
 # ---------------------------------------------------------------------------
 
@@ -268,9 +289,10 @@ async def run_completion(ctx: ConversationContext) -> str:
     # Use per-org OpenAI key if present; fall back to the global key.
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
-    # Build the messages list
+    # Build the messages list (append internal note instruction to system prompt)
+    full_system_prompt = ctx.system_prompt + INTERNAL_NOTE_INSTRUCTION
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": ctx.system_prompt},
+        {"role": "system", "content": full_system_prompt},
     ]
     # Append conversation history
     messages.extend(ctx.history)

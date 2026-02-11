@@ -18,6 +18,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import signal
 import tempfile
 from pathlib import Path
@@ -50,6 +51,24 @@ logger = logging.getLogger(__name__)
 # Track pending debounce tasks so we can cancel on shutdown
 _debounce_tasks: dict[int, asyncio.Task[None]] = {}
 _shutdown_event = asyncio.Event()
+
+# Regex to extract [NOTA_INTERNA]...[/NOTA_INTERNA] blocks
+_NOTA_INTERNA_RE = re.compile(
+    r"\[NOTA_INTERNA\](.*?)\[/NOTA_INTERNA\]",
+    re.DOTALL,
+)
+
+
+def _split_internal_notes(text: str) -> tuple[str, list[str]]:
+    """
+    Split AI response into client-facing text and internal notes.
+
+    Returns (client_text, list_of_internal_notes).
+    """
+    notes = _NOTA_INTERNA_RE.findall(text)
+    client_text = _NOTA_INTERNA_RE.sub("", text).strip()
+    notes = [n.strip() for n in notes if n.strip()]
+    return client_text, notes
 
 
 # ---------------------------------------------------------------------------
@@ -278,18 +297,50 @@ async def _process_batch(
 
         # 8. Send response to Chatwoot (unless transferred)
         if not ctx.transferred and ai_response.strip():
+            # Split client-facing text from internal notes
+            client_text, internal_notes = _split_internal_notes(ai_response)
+
             try:
                 # Mark that AI is sending — so the webhook knows this
                 # outgoing message is from the bot, not a human agent.
                 await redis_svc.set_ai_responding(conversation_id)
-                await chatwoot_svc.send_message(
-                    url=org["chatwoot_url"],
-                    token=org["chatwoot_token"],
-                    account_id=account_id,
-                    conversation_id=conversation_id,
-                    content=ai_response,
-                )
-                logger.info("Response SENT to conversation %d.", conversation_id)
+
+                # Send client-facing message (visible to customer)
+                if client_text:
+                    await chatwoot_svc.send_message(
+                        url=org["chatwoot_url"],
+                        token=org["chatwoot_token"],
+                        account_id=account_id,
+                        conversation_id=conversation_id,
+                        content=client_text,
+                    )
+                    logger.info("Response SENT to conversation %d.", conversation_id)
+
+                # Send internal notes as private messages (visible only to agents)
+                for note in internal_notes:
+                    try:
+                        await chatwoot_svc.send_private_message(
+                            url=org["chatwoot_url"],
+                            token=org["chatwoot_token"],
+                            account_id=account_id,
+                            conversation_id=conversation_id,
+                            content=f"🤖 IA: {note}",
+                        )
+                        logger.info("Internal note SENT to conversation %d.", conversation_id)
+                    except Exception:
+                        logger.warning(
+                            "Failed to send internal note for conversation %d.",
+                            conversation_id,
+                        )
+
+                if not client_text and internal_notes:
+                    logger.info(
+                        "AI response for conversation %d was entirely internal notes (%d notes).",
+                        conversation_id, len(internal_notes),
+                    )
+                elif not client_text and not internal_notes:
+                    logger.warning("Empty AI response after parsing for conversation %d.", conversation_id)
+
             except Exception:
                 logger.exception(
                     "FAILED TO SEND response to Chatwoot conversation %d.",
