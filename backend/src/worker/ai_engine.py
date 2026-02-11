@@ -214,6 +214,19 @@ async def _execute_tool_call(
             "Tool: register_lead('%s', '%s') for org %s.",
             lead_name, lead_phone, ctx.organization_id,
         )
+
+        # Check plan limit for leads
+        limit_check = await supabase_svc.check_plan_limit(ctx.organization_id, "leads")
+        if not limit_check["allowed"]:
+            logger.warning(
+                "Leads limit reached for org %s (%d/%d). Skipping register_lead.",
+                ctx.organization_id, limit_check["current"], limit_check["limit"],
+            )
+            return (
+                f"Limite de leads do plano atingido ({limit_check['current']}/{limit_check['limit']}). "
+                f"Faca upgrade do plano para registrar mais leads."
+            )
+
         await supabase_svc.insert_lead(
             org_id=ctx.organization_id,
             name=lead_name,

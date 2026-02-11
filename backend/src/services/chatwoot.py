@@ -327,6 +327,214 @@ async def create_kanban_note(
         return None
 
 
+async def list_conversations(
+    url: str,
+    token: str,
+    account_id: int,
+    status: str = "open",
+    page: int = 1,
+) -> dict[str, Any]:
+    """
+    List conversations from Chatwoot with pagination.
+
+    Returns the raw Chatwoot response with data.payload and data.meta.
+    """
+    endpoint = f"{url}/api/v1/accounts/{account_id}/conversations"
+    params = {"status": status, "page": page}
+    client = _get_client()
+    try:
+        response = await client.get(endpoint, params=params, headers=_headers(token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        logger.info(
+            "Listed conversations (account %d, status=%s, page=%d).",
+            account_id, status, page,
+        )
+        return data
+    except httpx.HTTPStatusError as exc:
+        logger.error("Chatwoot API error %d listing conversations: %s", exc.response.status_code, exc.response.text)
+        raise
+    except httpx.RequestError:
+        logger.exception("Network error listing conversations.")
+        raise
+
+
+async def get_contact(
+    url: str,
+    token: str,
+    account_id: int,
+    contact_id: int,
+) -> dict[str, Any]:
+    """Get contact details from Chatwoot."""
+    endpoint = f"{url}/api/v1/accounts/{account_id}/contacts/{contact_id}"
+    client = _get_client()
+    try:
+        response = await client.get(endpoint, headers=_headers(token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        logger.debug("Fetched contact %d details.", contact_id)
+        return data
+    except httpx.HTTPStatusError as exc:
+        logger.error("Chatwoot API error %d fetching contact: %s", exc.response.status_code, exc.response.text)
+        raise
+    except httpx.RequestError:
+        logger.exception("Network error fetching contact.")
+        raise
+
+
+async def search_contact_by_phone(
+    url: str,
+    token: str,
+    account_id: int,
+    phone: str,
+) -> Optional[dict[str, Any]]:
+    """Search for a contact by phone number. Returns the first match or None."""
+    endpoint = f"{url}/api/v1/accounts/{account_id}/contacts/search"
+    params = {"q": phone, "include_contacts": "true"}
+    client = _get_client()
+    try:
+        response = await client.get(endpoint, params=params, headers=_headers(token))
+        response.raise_for_status()
+        data = response.json()
+        payload = data.get("payload", [])
+        if payload:
+            logger.info("Found contact by phone '%s'.", phone)
+            return payload[0]
+        return None
+    except httpx.HTTPStatusError as exc:
+        logger.error("Chatwoot API error %d searching contact: %s", exc.response.status_code, exc.response.text)
+        return None
+    except httpx.RequestError:
+        logger.exception("Network error searching contact.")
+        return None
+
+
+async def create_contact(
+    url: str,
+    token: str,
+    account_id: int,
+    name: str,
+    phone: str,
+    inbox_id: int,
+) -> dict[str, Any]:
+    """Create a new contact in Chatwoot."""
+    endpoint = f"{url}/api/v1/accounts/{account_id}/contacts"
+    payload = {
+        "name": name,
+        "phone_number": phone,
+        "inbox_id": inbox_id,
+    }
+    client = _get_client()
+    try:
+        response = await client.post(endpoint, json=payload, headers=_headers(token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        logger.info("Contact created: %s (%s).", name, phone)
+        return data.get("payload", {}).get("contact", data)
+    except httpx.HTTPStatusError as exc:
+        logger.error("Chatwoot API error %d creating contact: %s", exc.response.status_code, exc.response.text)
+        raise
+
+
+async def create_conversation(
+    url: str,
+    token: str,
+    account_id: int,
+    contact_id: int,
+    inbox_id: int,
+) -> dict[str, Any]:
+    """Create a new conversation in Chatwoot."""
+    endpoint = f"{url}/api/v1/accounts/{account_id}/conversations"
+    payload = {
+        "contact_id": contact_id,
+        "inbox_id": inbox_id,
+    }
+    client = _get_client()
+    try:
+        response = await client.post(endpoint, json=payload, headers=_headers(token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        logger.info("Conversation created for contact %d.", contact_id)
+        return data
+    except httpx.HTTPStatusError as exc:
+        logger.error("Chatwoot API error %d creating conversation: %s", exc.response.status_code, exc.response.text)
+        raise
+
+
+async def send_outbound_message(
+    url: str,
+    token: str,
+    account_id: int,
+    inbox_id: int,
+    phone: str,
+    content: str,
+    name: str = "Lead",
+) -> dict[str, Any]:
+    """
+    Full outbound flow: find/create contact -> find/create conversation -> send message.
+    Returns dict with contact_id, conversation_id, message sent status.
+    """
+    # 1. Search or create contact
+    contact = await search_contact_by_phone(url, token, account_id, phone)
+    if contact:
+        contact_id = contact.get("id")
+    else:
+        contact = await create_contact(url, token, account_id, name, phone, inbox_id)
+        contact_id = contact.get("id")
+
+    if not contact_id:
+        raise ValueError(f"Could not find or create contact for phone {phone}")
+
+    # 2. Create conversation
+    conv = await create_conversation(url, token, account_id, contact_id, inbox_id)
+    conversation_id = conv.get("id")
+
+    if not conversation_id:
+        raise ValueError(f"Could not create conversation for contact {contact_id}")
+
+    # 3. Send message
+    await send_message(
+        url=url,
+        token=token,
+        account_id=account_id,
+        conversation_id=conversation_id,
+        content=content,
+    )
+
+    return {
+        "contact_id": contact_id,
+        "conversation_id": conversation_id,
+        "status": "sent",
+    }
+
+
+async def create_inbox(
+    url: str,
+    token: str,
+    account_id: int,
+    name: str,
+    channel_type: str = "api",
+) -> dict[str, Any]:
+    """Create a new inbox in Chatwoot."""
+    endpoint = f"{url}/api/v1/accounts/{account_id}/inboxes"
+    payload = {
+        "name": name,
+        "channel": {
+            "type": f"Channel::{channel_type.capitalize()}",
+        },
+    }
+    client = _get_client()
+    try:
+        response = await client.post(endpoint, json=payload, headers=_headers(token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        logger.info("Inbox '%s' created in Chatwoot (account %d).", name, account_id)
+        return data
+    except httpx.HTTPStatusError as exc:
+        logger.error("Chatwoot API error %d creating inbox: %s", exc.response.status_code, exc.response.text)
+        raise
+
+
 async def close() -> None:
     """Close the shared httpx client."""
     global _client

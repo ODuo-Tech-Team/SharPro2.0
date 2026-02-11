@@ -192,6 +192,73 @@ export function useRealtimeDashboard(
 // useRealtimeLeads
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// useRealtimeConversations
+// ---------------------------------------------------------------------------
+
+interface Conversation {
+  id: string;
+  conversation_id: number;
+  contact_id: number | null;
+  ai_status: string;
+  status: string;
+  updated_at: string;
+}
+
+export function useRealtimeConversations(
+  orgId: string,
+  initialConversations: Conversation[]
+) {
+  const [conversations, setConversations] =
+    useState<Conversation[]>(initialConversations);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`conversations-${orgId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversations",
+          filter: `organization_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const newConv = payload.new as Conversation;
+          setConversations((prev) => [newConv, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "conversations",
+          filter: `organization_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const updated = payload.new as Conversation;
+          setConversations((prev) =>
+            prev.map((c) => (c.id === updated.id ? updated : c))
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orgId]);
+
+  return conversations;
+}
+
+// ---------------------------------------------------------------------------
+// useRealtimeLeads
+// ---------------------------------------------------------------------------
+
 export function useRealtimeLeads(orgId: string, initialLeads: Lead[]) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const channelRef = useRef<RealtimeChannel | null>(null);

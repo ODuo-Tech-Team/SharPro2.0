@@ -109,3 +109,31 @@ class TransferPayload(BaseModel):
     url_chatwoot: Optional[str] = None
     apikey_chatwoot: Optional[str] = None
     fluxo_qualificacao: Optional[Any] = None
+
+
+# ---------------------------------------------------------------------------
+# Campaign schemas
+# ---------------------------------------------------------------------------
+
+class CampaignCreate(BaseModel):
+    """Payload for creating a new campaign."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    account_id: int
+    name: str
+    template_message: str
+    send_interval_seconds: int = 30
+
+
+# ---------------------------------------------------------------------------
+# Instance schemas
+# ---------------------------------------------------------------------------
+
+class InstanceCreate(BaseModel):
+    """Payload for creating a new WhatsApp instance."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    account_id: int
+    display_name: str = ""

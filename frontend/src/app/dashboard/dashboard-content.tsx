@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Users, DollarSign, Brain, MessageSquare } from "lucide-react";
+import { Users, DollarSign, Brain, MessageSquare, Bot, UserCheck } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useRealtimeDashboard } from "@/hooks/use-realtime";
 
@@ -28,6 +28,8 @@ interface DashboardContentProps {
   totalSalesVolume: number;
   aiEfficiency: number;
   activeCount: number;
+  conversationsActiveCount: number;
+  conversationsPausedCount: number;
   chartData: { date: string; leads: number }[];
   recentSales: {
     id: string;
@@ -44,6 +46,8 @@ export function DashboardContent({
   totalSalesVolume,
   aiEfficiency,
   activeCount,
+  conversationsActiveCount,
+  conversationsPausedCount,
   chartData,
   recentSales,
 }: DashboardContentProps) {
@@ -66,7 +70,7 @@ export function DashboardContent({
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard
           title="Total de Leads"
           value={live.totalLeads.toLocaleString("pt-BR")}
@@ -89,10 +93,24 @@ export function DashboardContent({
           iconColor="text-purple-500"
         />
         <KpiCard
-          title="Conversas Ativas"
+          title="Leads Interagindo"
           value={live.activeCount.toLocaleString("pt-BR")}
           icon={MessageSquare}
           iconColor="text-shark-accent"
+        />
+        <KpiCard
+          title="IA Ativa"
+          value={conversationsActiveCount.toLocaleString("pt-BR")}
+          description="conversas com IA"
+          icon={Bot}
+          iconColor="text-emerald-500"
+        />
+        <KpiCard
+          title="IA Pausada"
+          value={conversationsPausedCount.toLocaleString("pt-BR")}
+          description="aguardando humano"
+          icon={UserCheck}
+          iconColor="text-orange-500"
         />
       </div>
 

@@ -8,6 +8,10 @@ import {
   Users,
   Settings,
   Fish,
+  MessageSquare,
+  Megaphone,
+  MessageCircle,
+  Smartphone,
 } from "lucide-react";
 
 const navigation = [
@@ -17,9 +21,29 @@ const navigation = [
     icon: LayoutDashboard,
   },
   {
+    name: "Conversas",
+    href: "/dashboard/conversations",
+    icon: MessageSquare,
+  },
+  {
+    name: "Canais",
+    href: "/dashboard/channels",
+    icon: Smartphone,
+  },
+  {
     name: "Leads",
     href: "/dashboard/leads",
     icon: Users,
+  },
+  {
+    name: "Campanhas",
+    href: "/dashboard/campaigns",
+    icon: Megaphone,
+  },
+  {
+    name: "Feedback",
+    href: "/dashboard/feedback",
+    icon: MessageCircle,
   },
   {
     name: "Configuracoes",

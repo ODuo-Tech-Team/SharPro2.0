@@ -193,11 +193,10 @@ async def _process_batch(
             conversation_id,
         )
 
-        # 2. Check human takeover flag — if a human agent is handling
-        #    this conversation, the AI must not respond.
-        if await redis_svc.is_human_takeover(conversation_id):
+        # 2. Check AI paused (dual-layer: Redis + DB)
+        if await redis_svc.is_ai_paused(conversation_id):
             logger.info(
-                "Conversation %d is under human takeover. Skipping AI response.",
+                "Conversation %d is paused (human takeover). Skipping AI response.",
                 conversation_id,
             )
             return
@@ -211,6 +210,18 @@ async def _process_batch(
                 conversation_id,
             )
             return
+
+        # 3b. Upsert conversation for tracking
+        sender = payload.get("sender", {})
+        contact_id_for_upsert: Optional[int] = sender.get("id") if sender else None
+        try:
+            await supabase_svc.upsert_conversation(
+                org_id=org["id"],
+                conversation_id=conversation_id,
+                contact_id=contact_id_for_upsert,
+            )
+        except Exception:
+            logger.warning("Failed to upsert conversation %d (non-critical).", conversation_id)
 
         system_prompt: str = org.get("system_prompt") or (
             "You are a helpful sales assistant. Be polite, concise, and helpful."
@@ -400,6 +411,29 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
         else:
             logger.info("Organization has no inbox_id configured - accepting all inboxes.")
 
+        # --- Check if this is a campaign lead replying ---
+        sender_info = payload.get("sender", {})
+        sender_phone = sender_info.get("phone_number") or ""
+        if sender_phone:
+            try:
+                campaign_lead = await supabase_svc.check_phone_is_campaign_lead(sender_phone)
+                if campaign_lead:
+                    lead_id = campaign_lead["id"]
+                    campaign_id = campaign_lead["campaign_id"]
+                    logger.info(
+                        "Campaign lead reply detected: phone=%s, lead=%s, campaign=%s.",
+                        sender_phone, lead_id, campaign_id,
+                    )
+                    from datetime import datetime, timezone
+                    await supabase_svc.update_campaign_lead_status(
+                        lead_id=lead_id,
+                        status="replied",
+                        extra={"replied_at": datetime.now(timezone.utc).isoformat()},
+                    )
+                    await supabase_svc.increment_campaign_replied_count(campaign_id)
+            except Exception:
+                logger.warning("Failed to check campaign lead for phone %s (non-critical).", sender_phone)
+
         # --- Extract content from multiple possible locations ---
         content: str = (
             payload.get("content")
@@ -520,6 +554,129 @@ async def _on_reply_message(message: AbstractIncomingMessage) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Campaign message handler
+# ---------------------------------------------------------------------------
+
+async def _on_campaign_message(message: AbstractIncomingMessage) -> None:
+    """Callback for campaign queue messages. Starts the campaign sender loop."""
+    async with message.process():
+        try:
+            payload: dict[str, Any] = json.loads(message.body.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.error("Could not decode campaign message body. Dropping.")
+            return
+
+        campaign_id = payload.get("campaign_id")
+        action = payload.get("action", "start")
+
+        if not campaign_id:
+            logger.warning("Campaign message missing campaign_id. Dropping.")
+            return
+
+        if action == "start":
+            logger.info("Starting campaign sender for campaign %s.", campaign_id)
+            asyncio.create_task(_run_campaign_sender(campaign_id))
+
+
+async def _run_campaign_sender(campaign_id: str) -> None:
+    """
+    Loop: check status -> get lead -> send -> update -> sleep(interval) -> repeat.
+    Stops when no more pending leads or campaign is paused/completed.
+    """
+    from datetime import datetime, timezone
+
+    try:
+        campaign = await supabase_svc.get_campaign(campaign_id)
+        if not campaign:
+            logger.error("Campaign %s not found. Aborting sender.", campaign_id)
+            return
+
+        org = await supabase_svc.get_organization_by_account_id(0)  # dummy
+        # Get org from campaign's organization_id
+        client = supabase_svc._get_client()
+        org_response = (
+            client.table("organizations")
+            .select("*")
+            .eq("id", campaign["organization_id"])
+            .limit(1)
+            .execute()
+        )
+        if not org_response.data:
+            logger.error("No org found for campaign %s.", campaign_id)
+            return
+        org = org_response.data[0]
+
+        interval = campaign.get("send_interval_seconds", 30)
+        template = campaign.get("template_message", "")
+        inbox_id = org.get("inbox_id")
+
+        if not inbox_id:
+            logger.error("Organization has no inbox_id. Cannot send campaign messages.")
+            await supabase_svc.update_campaign_status(campaign_id, "paused")
+            return
+
+        while True:
+            # Re-check campaign status
+            campaign = await supabase_svc.get_campaign(campaign_id)
+            if not campaign or campaign["status"] != "active":
+                logger.info("Campaign %s is no longer active (status=%s). Stopping sender.",
+                            campaign_id, campaign.get("status") if campaign else "deleted")
+                break
+
+            # Get next pending lead
+            leads = await supabase_svc.get_pending_campaign_leads(campaign_id, limit=1)
+            if not leads:
+                logger.info("No more pending leads for campaign %s. Marking completed.", campaign_id)
+                await supabase_svc.update_campaign_status(
+                    campaign_id, "completed",
+                    extra={"completed_at": datetime.now(timezone.utc).isoformat()},
+                )
+                break
+
+            lead = leads[0]
+            lead_phone = lead["phone"]
+            lead_name = lead.get("name", "Lead")
+
+            # Personalize template
+            message = template.replace("{{nome}}", lead_name).replace("{{name}}", lead_name)
+
+            try:
+                result = await chatwoot_svc.send_outbound_message(
+                    url=org["chatwoot_url"],
+                    token=org["chatwoot_token"],
+                    account_id=org["chatwoot_account_id"],
+                    inbox_id=int(inbox_id),
+                    phone=lead_phone,
+                    content=message,
+                    name=lead_name,
+                )
+                await supabase_svc.update_campaign_lead_status(
+                    lead_id=lead["id"],
+                    status="sent",
+                    extra={
+                        "sent_at": datetime.now(timezone.utc).isoformat(),
+                        "conversation_id": result.get("conversation_id"),
+                    },
+                )
+                await supabase_svc.increment_campaign_sent_count(campaign_id)
+                logger.info("Campaign lead sent: %s -> %s.", lead_name, lead_phone)
+
+            except Exception as exc:
+                logger.exception("Failed to send campaign message to %s.", lead_phone)
+                await supabase_svc.update_campaign_lead_status(
+                    lead_id=lead["id"],
+                    status="failed",
+                    extra={"error_message": str(exc)[:500]},
+                )
+
+            # Sleep between sends
+            await asyncio.sleep(interval)
+
+    except Exception:
+        logger.exception("Campaign sender crashed for campaign %s.", campaign_id)
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -557,7 +714,16 @@ async def main() -> None:
             settings.rabbitmq_routing_key,
         )
 
-        # --- Queue 2: replay_to_message (Flow 1: reply with text) ---
+        # --- Queue 2: campaign_messages (outbound campaigns) ---
+        campaign_queue = await channel.declare_queue(
+            "campaign_messages",
+            durable=True,
+        )
+        await campaign_queue.bind(exchange, routing_key="campaign")
+        await campaign_queue.consume(_on_campaign_message)
+        logger.info("Queue 'campaign_messages' is now consuming campaign events.")
+
+        # --- Queue 3: replay_to_message (Flow 1: reply with text) ---
         reply_queue = await channel.declare_queue(
             settings.rabbitmq_reply_queue,
             durable=True,

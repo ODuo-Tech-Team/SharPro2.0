@@ -127,6 +127,31 @@ async def clear_human_takeover(conversation_id: int) -> None:
     logger.info("Human takeover CLEARED for conversation %d.", conversation_id)
 
 
+async def is_ai_paused(conversation_id: int) -> bool:
+    """
+    Dual-layer check: Redis first, fallback to DB, re-sync Redis if needed.
+
+    Returns True if the AI should NOT respond to this conversation.
+    """
+    # Layer 1: Redis (fast path)
+    if await is_human_takeover(conversation_id):
+        return True
+
+    # Layer 2: DB fallback
+    try:
+        from src.services.supabase_client import get_conversation_ai_status
+        db_status = await get_conversation_ai_status(conversation_id)
+        if db_status == "paused":
+            # Re-sync Redis so future checks are fast
+            await set_human_takeover(conversation_id)
+            logger.info("AI paused for conversation %d (re-synced from DB).", conversation_id)
+            return True
+    except Exception:
+        logger.warning("DB fallback check failed for conversation %d; using Redis-only.", conversation_id)
+
+    return False
+
+
 async def close() -> None:
     """Gracefully close the Redis connection pool."""
     global _redis

@@ -22,9 +22,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config import get_settings
 from src.services import rabbitmq as rmq
 from src.services import redis_client as redis_svc
+from src.services import supabase_client as supabase_svc
+from src.services import chatwoot as chatwoot_svc
 from src.services.transfer import execute_transfer
 from src.services.inactivity import process_stale_atendimentos
 from src.api.schemas import TransferPayload
+from src.api.campaigns import campaign_router
+from src.api.instances import instance_router
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -72,6 +76,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(campaign_router)
+app.include_router(instance_router)
 
 
 # ---------------------------------------------------------------------------
@@ -149,9 +156,34 @@ async def chatwoot_webhook(request: Request) -> Response:
                 new_status,
             )
             await redis_svc.clear_human_takeover(int(conversation_id))
+            await supabase_svc.set_conversation_ai_status(int(conversation_id), "active")
             return Response(content='{"detail":"takeover cleared"}', status_code=200, media_type="application/json")
         logger.info("Conversation status changed to '%s'. Ignoring.", new_status)
         return Response(content='{"detail":"status change ignored"}', status_code=200, media_type="application/json")
+
+    # ------------------------------------------------------------------
+    # Event: conversation_updated → detect sale labels
+    # ------------------------------------------------------------------
+    if event == "conversation_updated":
+        labels: list[str] = conversation.get("labels", [])
+        sale_labels = {"venda_realizada", "venda_concluida", "VENDA_REALIZADA"}
+        matched_labels = sale_labels.intersection(set(labels))
+        if matched_labels and conversation_id and account_id:
+            logger.info(
+                "Sale label detected (%s) for conversation %s. Recording sale.",
+                matched_labels, conversation_id,
+            )
+            org = await supabase_svc.get_organization_by_account_id(int(account_id))
+            if org:
+                await supabase_svc.insert_sale_idempotent(
+                    org_id=org["id"],
+                    amount=0.0,
+                    source="ai",
+                    conversation_id=int(conversation_id),
+                    confirmed_by="label",
+                )
+            return Response(content='{"detail":"sale recorded"}', status_code=200, media_type="application/json")
+        return Response(content='{"detail":"conversation_updated ignored"}', status_code=200, media_type="application/json")
 
     # ------------------------------------------------------------------
     # Gate: only process message_created events from here
@@ -183,7 +215,33 @@ async def chatwoot_webhook(request: Request) -> Response:
             conversation_id,
         )
         await redis_svc.set_human_takeover(conv_id)
+        await supabase_svc.set_conversation_ai_status(conv_id, "paused", status="human")
         return Response(content='{"detail":"human takeover set"}', status_code=200, media_type="application/json")
+
+    # ------------------------------------------------------------------
+    # /auto command: reactivate AI for this conversation
+    # ------------------------------------------------------------------
+    content_text: str = body.get("content", "") or ""
+    if content_text.strip().lower() == "/auto" and conversation_id:
+        conv_id = int(conversation_id)
+        logger.info("Command /auto detected for conversation %s. Reactivating AI.", conversation_id)
+        await redis_svc.clear_human_takeover(conv_id)
+        await supabase_svc.set_conversation_ai_status(conv_id, "active", status="bot")
+        # Send private note confirming reactivation
+        if account_id:
+            org = await supabase_svc.get_organization_by_account_id(int(account_id))
+            if org:
+                try:
+                    await chatwoot_svc.send_private_message(
+                        url=org["chatwoot_url"],
+                        token=org["chatwoot_token"],
+                        account_id=int(account_id),
+                        conversation_id=conv_id,
+                        content="IA reativada via comando /auto",
+                    )
+                except Exception:
+                    logger.warning("Failed to send /auto confirmation note.")
+        return Response(content='{"detail":"ai reactivated"}', status_code=200, media_type="application/json")
 
     # ------------------------------------------------------------------
     # Incoming message (customer) → forward to RabbitMQ for AI
@@ -283,6 +341,101 @@ async def debug_rabbitmq() -> dict[str, Any]:
     except Exception as exc:
         logger.exception("Debug RabbitMQ failed.")
         return {"status": "error", "detail": str(exc)}
+
+
+@app.post("/api/conversations/{conversation_id}/reactivate", status_code=200)
+async def reactivate_ai(conversation_id: int) -> dict[str, str]:
+    """Reactivate AI for a conversation (frontend button)."""
+    logger.info("Reactivating AI for conversation %d via API.", conversation_id)
+    await redis_svc.clear_human_takeover(conversation_id)
+    await supabase_svc.set_conversation_ai_status(conversation_id, "active", status="bot")
+    return {"detail": "ai reactivated", "conversation_id": str(conversation_id)}
+
+
+@app.get("/api/dashboard/stats/{account_id}")
+async def dashboard_stats(account_id: int) -> dict[str, Any]:
+    """Return aggregated dashboard metrics for an organization."""
+    org = await supabase_svc.get_organization_by_account_id(account_id)
+    if not org:
+        return {"error": "Organization not found"}
+    stats = await supabase_svc.get_dashboard_stats(org["id"])
+    return {"status": "ok", **stats}
+
+
+@app.get("/api/chatwoot/conversations/{account_id}")
+async def chatwoot_conversations_proxy(
+    account_id: int,
+    status: str = "open",
+    page: int = 1,
+) -> dict[str, Any]:
+    """Proxy Chatwoot conversations list with pagination and status filter."""
+    org = await supabase_svc.get_organization_by_account_id(account_id)
+    if not org:
+        return {"error": "Organization not found"}
+
+    data = await chatwoot_svc.list_conversations(
+        url=org["chatwoot_url"],
+        token=org["chatwoot_token"],
+        account_id=account_id,
+        status=status,
+        page=page,
+    )
+    return data
+
+
+@app.get("/api/chatwoot/conversations/{account_id}/{conversation_id}/messages")
+async def chatwoot_messages_proxy(
+    account_id: int,
+    conversation_id: int,
+) -> dict[str, Any]:
+    """Proxy Chatwoot messages for a specific conversation."""
+    org = await supabase_svc.get_organization_by_account_id(account_id)
+    if not org:
+        return {"error": "Organization not found"}
+
+    messages = await chatwoot_svc.get_messages(
+        url=org["chatwoot_url"],
+        token=org["chatwoot_token"],
+        account_id=account_id,
+        conversation_id=conversation_id,
+    )
+    return {"payload": messages}
+
+
+@app.post("/api/chatwoot/conversations/{account_id}/{conversation_id}/messages")
+async def chatwoot_send_message_proxy(
+    account_id: int,
+    conversation_id: int,
+    request: Request,
+) -> dict[str, Any]:
+    """Send a message to a Chatwoot conversation and set human takeover."""
+    try:
+        body = await request.json()
+    except Exception:
+        return {"error": "Invalid JSON body"}
+
+    content = body.get("content", "").strip()
+    if not content:
+        return {"error": "Content is required"}
+
+    org = await supabase_svc.get_organization_by_account_id(account_id)
+    if not org:
+        return {"error": "Organization not found"}
+
+    result = await chatwoot_svc.send_message(
+        url=org["chatwoot_url"],
+        token=org["chatwoot_token"],
+        account_id=account_id,
+        conversation_id=conversation_id,
+        content=content,
+    )
+
+    # Human agent sent a message → set takeover
+    await redis_svc.set_human_takeover(conversation_id)
+    await supabase_svc.set_conversation_ai_status(conversation_id, "paused", status="human")
+    logger.info("Human message sent via dashboard for conversation %d. Takeover set.", conversation_id)
+
+    return {"payload": result}
 
 
 @app.post("/cron/inactivity", status_code=200)

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -14,7 +16,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Save, Bot, Link2, Key } from "lucide-react";
+import { Loader2, Save, Bot, Link2, Key, Crown, Users, Target, Megaphone } from "lucide-react";
+
+interface PlanInfo {
+  id: string;
+  name: string;
+  max_users: number;
+  max_connections: number;
+  max_campaigns: number;
+  max_leads: number;
+  price_monthly: number;
+}
 
 interface OrgSettings {
   id: string;
@@ -25,13 +37,59 @@ interface OrgSettings {
   chatwoot_account_id: number | null;
   inbox_id: number | null;
   openai_api_key: string | null;
+  plan_id: string | null;
+  plans: PlanInfo | null;
+}
+
+interface UsageData {
+  currentUsers: number;
+  currentLeads: number;
+  currentCampaigns: number;
 }
 
 interface SettingsFormProps {
   settings: OrgSettings;
+  usage: UsageData;
+  allPlans: PlanInfo[];
 }
 
-export function SettingsForm({ settings }: SettingsFormProps) {
+function UsageMeter({
+  label,
+  icon: Icon,
+  current,
+  max,
+}: {
+  label: string;
+  icon: React.ElementType;
+  current: number;
+  max: number;
+}) {
+  const isUnlimited = max === -1;
+  const percentage = isUnlimited ? 0 : max > 0 ? Math.min((current / max) * 100, 100) : 0;
+  const isNearLimit = !isUnlimited && percentage >= 80;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-sm">
+        <span className="flex items-center gap-1.5 text-muted-foreground">
+          <Icon className="h-4 w-4" />
+          {label}
+        </span>
+        <span className={`font-medium ${isNearLimit ? "text-orange-500" : ""}`}>
+          {current}/{isUnlimited ? "Ilimitado" : max}
+        </span>
+      </div>
+      {!isUnlimited && (
+        <Progress
+          value={percentage}
+          className={`h-2 ${isNearLimit ? "[&>div]:bg-orange-500" : ""}`}
+        />
+      )}
+    </div>
+  );
+}
+
+export function SettingsForm({ settings, usage, allPlans }: SettingsFormProps) {
   const supabase = createClient();
   const { toast } = useToast();
 
@@ -50,6 +108,8 @@ export function SettingsForm({ settings }: SettingsFormProps) {
   );
   const [openaiKey, setOpenaiKey] = useState(settings.openai_api_key ?? "");
   const [saving, setSaving] = useState(false);
+
+  const plan = settings.plans;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +148,89 @@ export function SettingsForm({ settings }: SettingsFormProps) {
 
   return (
     <form onSubmit={handleSave} className="space-y-6">
+      {/* Plan Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Crown className="h-5 w-5 text-amber-500" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg">Seu Plano</CardTitle>
+                {plan && (
+                  <Badge variant="outline" className="font-semibold">
+                    {plan.name}
+                  </Badge>
+                )}
+              </div>
+              <CardDescription>
+                {plan
+                  ? `R$ ${plan.price_monthly.toFixed(2)}/mes`
+                  : "Nenhum plano configurado"}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {plan && (
+            <>
+              <div className="space-y-3">
+                <UsageMeter
+                  label="Usuarios"
+                  icon={Users}
+                  current={usage.currentUsers}
+                  max={plan.max_users}
+                />
+                <UsageMeter
+                  label="Leads"
+                  icon={Target}
+                  current={usage.currentLeads}
+                  max={plan.max_leads}
+                />
+                <UsageMeter
+                  label="Campanhas"
+                  icon={Megaphone}
+                  current={usage.currentCampaigns}
+                  max={plan.max_campaigns}
+                />
+              </div>
+
+              {allPlans.length > 1 && (
+                <div className="pt-2">
+                  <p className="mb-2 text-sm font-medium text-muted-foreground">
+                    Planos disponiveis:
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {allPlans.map((p) => (
+                      <div
+                        key={p.id}
+                        className={`rounded-lg border p-3 text-center transition-colors ${
+                          p.id === plan.id
+                            ? "border-shark-blue bg-shark-blue/5"
+                            : "hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        <p className="font-semibold text-sm">{p.name}</p>
+                        <p className="text-lg font-bold">
+                          R$ {p.price_monthly.toFixed(0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {p.max_leads === -1 ? "Ilimitado" : p.max_leads} leads
+                        </p>
+                        {p.id === plan.id && (
+                          <Badge className="mt-1" variant="info">
+                            Atual
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
       {/* AI Personality */}
       <Card>
         <CardHeader>

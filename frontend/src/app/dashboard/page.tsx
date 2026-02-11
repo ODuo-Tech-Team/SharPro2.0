@@ -99,8 +99,23 @@ async function getDashboardData() {
   const aiEfficiency =
     allSales.length > 0 ? Math.round((aiSales / allSales.length) * 100) : 0;
 
-  // Active conversations count
+  // Active conversations count (from conversations table with ai_status)
+  const [conversationsActive, conversationsPaused] = await Promise.all([
+    supabase
+      .from("conversations")
+      .select("id", { count: "exact" })
+      .eq("organization_id", orgId)
+      .eq("ai_status", "active"),
+    supabase
+      .from("conversations")
+      .select("id", { count: "exact" })
+      .eq("organization_id", orgId)
+      .eq("ai_status", "paused"),
+  ]);
+
   const activeCount = activeConversations.count ?? 0;
+  const conversationsActiveCount = conversationsActive.count ?? 0;
+  const conversationsPausedCount = conversationsPaused.count ?? 0;
 
   // Build chart data (leads per day, last 30 days)
   const chartData: LeadChartData[] = [];
@@ -132,6 +147,8 @@ async function getDashboardData() {
     totalSalesVolume,
     aiEfficiency,
     activeCount,
+    conversationsActiveCount,
+    conversationsPausedCount,
     chartData,
     recentSales,
   };
@@ -163,6 +180,8 @@ export default async function DashboardPage() {
       totalSalesVolume={data.totalSalesVolume}
       aiEfficiency={data.aiEfficiency}
       activeCount={data.activeCount}
+      conversationsActiveCount={data.conversationsActiveCount}
+      conversationsPausedCount={data.conversationsPausedCount}
       chartData={data.chartData}
       recentSales={data.recentSales}
     />

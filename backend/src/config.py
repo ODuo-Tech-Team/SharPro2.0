@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     whisper_model: str = "whisper-1"
     log_level: str = "INFO"
 
+    # -- Campaigns --
+    campaign_default_interval: int = 30
+    campaign_max_concurrent: int = 3
+
+    # -- Uazapi (WhatsApp instance management) --
+    uazapi_base_url: str = ""
+    uazapi_global_token: str = ""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
