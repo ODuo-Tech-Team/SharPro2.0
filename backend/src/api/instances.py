@@ -177,6 +177,71 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
     }
 
 
+@instance_router.post("/{instance_id}/connect-chatwoot")
+async def connect_chatwoot(instance_id: str) -> dict[str, Any]:
+    """
+    Manually configure Uazapi ↔ Chatwoot integration for an instance.
+    1. Update Chatwoot inbox webhook URL → Uazapi chatwoot webhook
+    2. Configure Uazapi built-in Chatwoot integration via PUT /chatwoot/config
+    """
+    instance = await supabase_svc.get_instance(instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
+
+    uazapi_token = instance.get("uazapi_token")
+    if not uazapi_token:
+        raise HTTPException(status_code=400, detail="Instance has no Uazapi token")
+
+    chatwoot_inbox_id = instance.get("chatwoot_inbox_id")
+    if not chatwoot_inbox_id:
+        raise HTTPException(status_code=400, detail="Instance has no Chatwoot inbox")
+
+    # Get org for Chatwoot credentials
+    org = await supabase_svc.get_organization_full(instance["organization_id"])
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    chatwoot_url = org.get("chatwoot_url")
+    chatwoot_token = org.get("chatwoot_token")
+    chatwoot_account_id = org.get("chatwoot_account_id")
+
+    if not all([chatwoot_url, chatwoot_token, chatwoot_account_id]):
+        raise HTTPException(status_code=400, detail="Organization missing Chatwoot config")
+
+    settings = get_settings()
+
+    # Step 1: Update Chatwoot inbox webhook URL
+    chatwoot_webhook_url = f"{settings.uazapi_base_url}/chatwoot/webhook/{uazapi_token}"
+    try:
+        await chatwoot_svc.update_inbox(
+            url=chatwoot_url,
+            token=chatwoot_token,
+            account_id=chatwoot_account_id,
+            inbox_id=chatwoot_inbox_id,
+            webhook_url=chatwoot_webhook_url,
+        )
+        logger.info("Chatwoot inbox %d webhook updated to %s", chatwoot_inbox_id, chatwoot_webhook_url)
+    except Exception as exc:
+        logger.exception("Failed to update Chatwoot inbox webhook.")
+        raise HTTPException(status_code=502, detail=f"Failed to update Chatwoot inbox: {exc}")
+
+    # Step 2: Configure Uazapi built-in Chatwoot integration
+    try:
+        await uazapi_svc.configure_chatwoot(
+            instance_token=uazapi_token,
+            chatwoot_url=chatwoot_url,
+            chatwoot_token=chatwoot_token,
+            account_id=chatwoot_account_id,
+            inbox_id=chatwoot_inbox_id,
+        )
+        logger.info("Uazapi Chatwoot integration configured for instance %s", instance_id)
+    except Exception as exc:
+        logger.exception("Failed to configure Uazapi Chatwoot integration.")
+        raise HTTPException(status_code=502, detail=f"Failed to configure Uazapi: {exc}")
+
+    return {"status": "ok", "detail": "Chatwoot connected successfully"}
+
+
 @instance_router.get("/{instance_id}/qrcode")
 async def get_qr_code(instance_id: str) -> dict[str, Any]:
     """Get QR code for an existing instance (with retry for race conditions)."""
