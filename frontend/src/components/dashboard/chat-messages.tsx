@@ -90,15 +90,48 @@ export function ChatMessages({
     }
   }, [accountId, conversationId]);
 
-  // Initial fetch + polling every 2s for near real-time
+  // Initial fetch + SSE for real-time updates
   useEffect(() => {
     if (!conversationId) return;
 
     isFirstLoad.current = true;
     fetchMessages();
 
-    const interval = setInterval(fetchMessages, 2000);
-    return () => clearInterval(interval);
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+    let sseRetries = 0;
+
+    // Connect SSE for real-time new messages
+    const sseUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/sse/messages/${accountId}/${conversationId}`;
+    const eventSource = new EventSource(sseUrl);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const newMsg: Message = JSON.parse(event.data);
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+        sseRetries = 0; // reset on success
+      } catch {
+        // ignore parse errors
+      }
+    };
+
+    eventSource.onerror = () => {
+      sseRetries++;
+      if (sseRetries >= 3) {
+        // SSE keeps failing - switch to polling fallback
+        eventSource.close();
+        if (!fallbackInterval) {
+          fallbackInterval = setInterval(fetchMessages, 3000);
+        }
+      }
+    };
+
+    return () => {
+      eventSource.close();
+      if (fallbackInterval) clearInterval(fallbackInterval);
+    };
   }, [conversationId, fetchMessages]);
 
   // Auto-scroll to bottom when messages change

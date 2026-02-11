@@ -11,6 +11,7 @@ startup and closed gracefully on shutdown.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -18,6 +19,7 @@ from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from src.config import get_settings
 from src.services import rabbitmq as rmq
@@ -409,6 +411,60 @@ async def chatwoot_messages_proxy(
         conversation_id=conversation_id,
     )
     return {"payload": messages}
+
+
+@app.get("/api/sse/messages/{account_id}/{conversation_id}")
+async def sse_messages(
+    account_id: int,
+    conversation_id: int,
+    request: Request,
+) -> StreamingResponse:
+    """SSE endpoint that streams new messages in real-time."""
+    org = await supabase_svc.get_organization_by_account_id(account_id)
+    if not org:
+        return Response(status_code=404, content="Organization not found")
+
+    chatwoot_url = org["chatwoot_url"]
+    chatwoot_token = org["chatwoot_token"]
+
+    async def event_generator():
+        seen_ids: set[int] = set()
+        # Fetch initial messages to populate seen_ids
+        try:
+            initial = await chatwoot_svc.get_messages(
+                url=chatwoot_url, token=chatwoot_token,
+                account_id=account_id, conversation_id=conversation_id,
+            )
+            for msg in initial:
+                seen_ids.add(msg.get("id", 0))
+        except Exception:
+            pass
+
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                messages = await chatwoot_svc.get_messages(
+                    url=chatwoot_url, token=chatwoot_token,
+                    account_id=account_id, conversation_id=conversation_id,
+                )
+                new_msgs = [m for m in messages if m.get("id", 0) not in seen_ids]
+                for msg in new_msgs:
+                    seen_ids.add(msg.get("id", 0))
+                    yield f"data: {json.dumps(msg)}\n\n"
+            except Exception as exc:
+                logger.debug("SSE poll error: %s", exc)
+            await asyncio.sleep(1.5)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post("/api/chatwoot/conversations/{account_id}/{conversation_id}/messages")
