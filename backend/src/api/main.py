@@ -27,8 +27,10 @@ from src.services import chatwoot as chatwoot_svc
 from src.services.transfer import execute_transfer
 from src.services.inactivity import process_stale_atendimentos
 from src.api.schemas import TransferPayload
+from src.api.middleware import check_org_active
 from src.api.campaigns import campaign_router
 from src.api.instances import instance_router
+from src.api.admin import admin_router
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -72,13 +74,14 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(campaign_router)
 app.include_router(instance_router)
+app.include_router(admin_router)
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +361,7 @@ async def dashboard_stats(account_id: int) -> dict[str, Any]:
     org = await supabase_svc.get_organization_by_account_id(account_id)
     if not org:
         return {"error": "Organization not found"}
+    await check_org_active(org)
     stats = await supabase_svc.get_dashboard_stats(org["id"])
     return {"status": "ok", **stats}
 

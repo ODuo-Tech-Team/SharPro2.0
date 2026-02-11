@@ -12,6 +12,7 @@ import {
   Megaphone,
   MessageCircle,
   Smartphone,
+  Shield,
 } from "lucide-react";
 
 const navigation = [
@@ -52,7 +53,11 @@ const navigation = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isSuperAdmin?: boolean;
+}
+
+export function Sidebar({ isSuperAdmin }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -93,6 +98,19 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Admin link */}
+      {isSuperAdmin && (
+        <div className="border-t border-white/10 px-3 py-3">
+          <Link
+            href="/admin/clients"
+            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-500 transition-colors hover:bg-amber-500/10"
+          >
+            <Shield className="h-5 w-5 flex-shrink-0" />
+            Admin
+          </Link>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="border-t border-white/10 p-4">

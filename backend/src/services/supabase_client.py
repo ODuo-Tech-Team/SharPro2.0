@@ -30,6 +30,239 @@ def _get_client() -> Client:
     return _client
 
 
+
+# ---------------------------------------------------------------------------
+# Auth / Admin helpers
+# ---------------------------------------------------------------------------
+
+async def validate_user_token(jwt: str) -> Optional[dict[str, Any]]:
+    """Validate a JWT via Supabase GoTrue and return the user dict."""
+    try:
+        client = _get_client()
+        response = client.auth.get_user(jwt)
+        if response and response.user:
+            return {
+                "id": response.user.id,
+                "email": response.user.email,
+                "role": response.user.role,
+            }
+        return None
+    except Exception:
+        logger.warning("Token validation failed.")
+        return None
+
+
+async def get_profile_by_user_id(user_id: str) -> Optional[dict[str, Any]]:
+    """Get a profile row by user ID."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("profiles")
+            .select("*")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
+    except Exception:
+        logger.exception("Error getting profile for user=%s.", user_id)
+        return None
+
+
+async def get_all_organizations_with_details() -> list[dict[str, Any]]:
+    """List all organizations with plan name, owner email, and instance status."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("organizations")
+            .select("*, plans(id, name)")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        orgs = response.data or []
+
+        for org in orgs:
+            # Get owner (first admin profile for this org)
+            owner_res = (
+                client.table("profiles")
+                .select("id, email, full_name")
+                .eq("organization_id", org["id"])
+                .eq("role", "admin")
+                .limit(1)
+                .execute()
+            )
+            org["owner"] = owner_res.data[0] if owner_res.data else None
+
+            # Get instance count and status
+            inst_res = (
+                client.table("whatsapp_instances")
+                .select("id, status")
+                .eq("organization_id", org["id"])
+                .execute()
+            )
+            instances = inst_res.data or []
+            org["instance_count"] = len(instances)
+            org["whatsapp_connected"] = any(i.get("status") == "connected" for i in instances)
+
+        return orgs
+    except Exception:
+        logger.exception("Error listing organizations with details.")
+        return []
+
+
+async def get_organization_full(org_id: str) -> Optional[dict[str, Any]]:
+    """Get full organization data for admin edit modal."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("organizations")
+            .select("*, plans(id, name)")
+            .eq("id", org_id)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return None
+
+        org = response.data[0]
+
+        # Get owner
+        owner_res = (
+            client.table("profiles")
+            .select("id, email, full_name")
+            .eq("organization_id", org_id)
+            .eq("role", "admin")
+            .limit(1)
+            .execute()
+        )
+        org["owner"] = owner_res.data[0] if owner_res.data else None
+
+        return org
+    except Exception:
+        logger.exception("Error getting full org data for org=%s.", org_id)
+        return None
+
+
+ALLOWED_ORG_UPDATE_FIELDS = {
+    "plan_id", "system_prompt", "openai_api_key",
+    "chatwoot_account_id", "chatwoot_url", "chatwoot_token", "inbox_id",
+}
+
+
+async def update_organization(org_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    """Update organization fields (whitelist-enforced)."""
+    try:
+        client = _get_client()
+        safe_updates = {k: v for k, v in updates.items() if k in ALLOWED_ORG_UPDATE_FIELDS}
+        if not safe_updates:
+            return {}
+        response = (
+            client.table("organizations")
+            .update(safe_updates)
+            .eq("id", org_id)
+            .execute()
+        )
+        result = response.data[0] if response.data else {}
+        logger.info("Organization %s updated: %s", org_id, list(safe_updates.keys()))
+        return result
+    except Exception:
+        logger.exception("Error updating organization %s.", org_id)
+        raise
+
+
+async def set_organization_active(org_id: str, is_active: bool) -> dict[str, Any]:
+    """Toggle organization active/blocked status."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("organizations")
+            .update({"is_active": is_active})
+            .eq("id", org_id)
+            .execute()
+        )
+        result = response.data[0] if response.data else {}
+        logger.info("Organization %s is_active set to %s.", org_id, is_active)
+        return result
+    except Exception:
+        logger.exception("Error toggling org %s active status.", org_id)
+        raise
+
+
+async def get_org_owner(org_id: str) -> Optional[dict[str, Any]]:
+    """Get the admin user (owner) for an organization."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("profiles")
+            .select("id, email, full_name")
+            .eq("organization_id", org_id)
+            .eq("role", "admin")
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
+    except Exception:
+        logger.exception("Error getting owner for org=%s.", org_id)
+        return None
+
+
+async def admin_reset_user_password(user_id: str, new_password: str) -> None:
+    """Reset a user's password via Supabase Admin API."""
+    try:
+        client = _get_client()
+        client.auth.admin.update_user_by_id(
+            user_id,
+            {"password": new_password},
+        )
+        logger.info("Password reset for user %s.", user_id)
+    except Exception:
+        logger.exception("Error resetting password for user %s.", user_id)
+        raise
+
+
+async def admin_generate_magic_link(user_id: str) -> Optional[str]:
+    """Generate a magic link for impersonating a user."""
+    try:
+        client = _get_client()
+        # Get user email first
+        profile = await get_profile_by_user_id(user_id)
+        if not profile:
+            return None
+
+        email = profile.get("email", "")
+        if not email:
+            return None
+
+        response = client.auth.admin.generate_link(
+            {
+                "type": "magiclink",
+                "email": email,
+            }
+        )
+        if response and hasattr(response, "properties") and response.properties:
+            return response.properties.action_link
+        return None
+    except Exception:
+        logger.exception("Error generating magic link for user %s.", user_id)
+        return None
+
+
+async def get_all_plans() -> list[dict[str, Any]]:
+    """List all available plans."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("plans")
+            .select("*")
+            .order("price", desc=False)
+            .execute()
+        )
+        return response.data or []
+    except Exception:
+        logger.exception("Error listing plans.")
+        return []
+
+
 async def get_organization_by_account_id(account_id: int) -> Optional[dict[str, Any]]:
     """
     Look up an organization row by its ``chatwoot_account_id``.
@@ -90,6 +323,52 @@ async def insert_lead(
     except Exception:
         logger.exception("Error inserting lead '%s' for org=%s.", name, org_id)
         raise
+
+
+async def upsert_lead(
+    org_id: str,
+    name: str,
+    phone: str,
+    contact_id: Optional[int] = None,
+    source: str = "organic",
+) -> Optional[dict[str, Any]]:
+    """
+    Insert a lead if it doesn't already exist (keyed on org_id + phone).
+
+    Returns the lead row or None on error.
+    """
+    try:
+        client = _get_client()
+        # Check if lead already exists
+        existing = (
+            client.table("leads")
+            .select("id")
+            .eq("organization_id", org_id)
+            .eq("phone", phone)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            logger.debug("Lead already exists for phone=%s org=%s. Skipping.", phone, org_id)
+            return existing.data[0]
+
+        payload: dict[str, Any] = {
+            "organization_id": org_id,
+            "name": name,
+            "phone": phone,
+            "source": source,
+            "status": "new",
+        }
+        if contact_id is not None:
+            payload["contact_id"] = contact_id
+
+        response = client.table("leads").insert(payload).execute()
+        lead = response.data[0] if response.data else {}
+        logger.info("Lead upserted: %s phone=%s (org=%s, source=%s).", name, phone, org_id, source)
+        return lead
+    except Exception:
+        logger.exception("Error upserting lead phone=%s for org=%s.", phone, org_id)
+        return None
 
 
 async def insert_sale(

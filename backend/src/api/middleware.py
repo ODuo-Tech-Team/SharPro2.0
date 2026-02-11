@@ -16,6 +16,25 @@ from src.services import supabase_client as supabase_svc
 logger = logging.getLogger(__name__)
 
 
+async def check_org_active(org: dict[str, Any]) -> None:
+    """
+    Check if an organization is active. Raises 403 if blocked.
+
+    Parameters
+    ----------
+    org: Organization dict (must have 'is_active' field).
+    """
+    if org.get("is_active") is False:
+        logger.warning("Blocked request for inactive org=%s (%s).", org.get("id"), org.get("name"))
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "organization_blocked",
+                "message": "Esta organizacao esta bloqueada. Entre em contato com o suporte.",
+            },
+        )
+
+
 async def check_plan_limit(org_id: str, resource: str) -> dict[str, Any]:
     """
     Check if an organization can create more of a given resource.

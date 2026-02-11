@@ -31,7 +31,7 @@ export function ChatLayout({ accountId, aiStatusMap }: ChatLayoutProps) {
       </div>
 
       {/* Chat area */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-h-0">
         <ChatMessages
           accountId={accountId}
           conversationId={selectedConversationId}

@@ -21,7 +21,7 @@ from src.config import get_settings
 from src.services import supabase_client as supabase_svc
 from src.services import chatwoot as chatwoot_svc
 from src.services import uazapi as uazapi_svc
-from src.api.middleware import check_plan_limit
+from src.api.middleware import check_plan_limit, check_org_active
 from src.api.schemas import InstanceCreate
 
 logger = logging.getLogger(__name__)
@@ -80,6 +80,8 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
     org = await supabase_svc.get_organization_by_account_id(payload.account_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
+
+    await check_org_active(org)
 
     # Step 1: Plan limit check
     await check_plan_limit(org["id"], "connections")
@@ -159,7 +161,9 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
 
 @instance_router.get("/{instance_id}/qrcode")
 async def get_qr_code(instance_id: str) -> dict[str, Any]:
-    """Get QR code for an existing instance."""
+    """Get QR code for an existing instance (with retry for race conditions)."""
+    import asyncio
+
     instance = await supabase_svc.get_instance(instance_id)
     if not instance:
         raise HTTPException(status_code=404, detail="Instance not found")
@@ -167,18 +171,31 @@ async def get_qr_code(instance_id: str) -> dict[str, Any]:
     if not instance.get("uazapi_token"):
         raise HTTPException(status_code=400, detail="Instance has no Uazapi token")
 
-    try:
-        qr_data = await uazapi_svc.connect_instance(instance["uazapi_token"])
-        inst_data = qr_data.get("instance", {})
-        qr_code = inst_data.get("qrcode", "") or qr_data.get("qrcode", "")
-        pairing_code = inst_data.get("paircode", "") or qr_data.get("pairingCode", "")
-        return {
-            "status": "ok",
-            "qrcode": qr_code,
-            "pairingCode": pairing_code,
-        }
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Uazapi error: {exc}")
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            qr_data = await uazapi_svc.connect_instance(instance["uazapi_token"])
+            inst_data = qr_data.get("instance", {})
+            qr_code = inst_data.get("qrcode", "") or qr_data.get("qrcode", "")
+            pairing_code = inst_data.get("paircode", "") or qr_data.get("pairingCode", "")
+            if qr_code:
+                return {
+                    "status": "ok",
+                    "qrcode": qr_code,
+                    "pairingCode": pairing_code,
+                }
+            # QR not ready yet, wait and retry
+            logger.info("QR code empty on attempt %d for instance %s. Retrying...", attempt + 1, instance_id)
+        except Exception as exc:
+            last_error = exc
+            logger.warning("QR code attempt %d failed for instance %s: %s", attempt + 1, instance_id, exc)
+
+        if attempt < 2:
+            await asyncio.sleep(2)
+
+    if last_error:
+        raise HTTPException(status_code=502, detail=f"Uazapi error: {last_error}")
+    return {"status": "ok", "qrcode": "", "pairingCode": ""}
 
 
 @instance_router.get("/{instance_id}/status")

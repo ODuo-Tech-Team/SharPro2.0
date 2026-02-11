@@ -6,12 +6,13 @@ import { TopBar } from "@/components/dashboard/top-bar";
 interface DashboardShellProps {
   children: React.ReactNode;
   userEmail?: string;
+  isSuperAdmin?: boolean;
 }
 
-export function DashboardShell({ children, userEmail }: DashboardShellProps) {
+export function DashboardShell({ children, userEmail, isSuperAdmin }: DashboardShellProps) {
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      <Sidebar isSuperAdmin={isSuperAdmin} />
       <div className="flex flex-1 flex-col pl-64">
         <TopBar userEmail={userEmail} />
         <main className="flex-1 p-6">{children}</main>

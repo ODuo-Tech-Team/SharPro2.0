@@ -657,6 +657,12 @@ async def _run_campaign_sender(campaign_id: str) -> None:
             return
         org = org_response.data[0]
 
+        # Check if organization is active
+        if org.get("is_active") is False:
+            logger.warning("Organization %s is blocked. Stopping campaign %s.", org.get("id"), campaign_id)
+            await supabase_svc.update_campaign_status(campaign_id, "paused")
+            return
+
         interval = campaign.get("send_interval_seconds", 30)
         template = campaign.get("template_message", "")
         inbox_id = org.get("inbox_id")
@@ -711,6 +717,17 @@ async def _run_campaign_sender(campaign_id: str) -> None:
                 )
                 await supabase_svc.increment_campaign_sent_count(campaign_id)
                 logger.info("Campaign lead sent: %s -> %s.", lead_name, lead_phone)
+
+                # Create lead in leads table (non-critical)
+                try:
+                    await supabase_svc.upsert_lead(
+                        org_id=org["id"],
+                        name=lead_name,
+                        phone=lead_phone,
+                        source="campaign",
+                    )
+                except Exception:
+                    logger.warning("Failed to upsert lead for campaign %s phone %s (non-critical).", campaign_id, lead_phone)
 
             except Exception as exc:
                 logger.exception("Failed to send campaign message to %s.", lead_phone)

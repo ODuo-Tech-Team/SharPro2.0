@@ -25,7 +25,7 @@ from src.services import supabase_client as supabase_svc
 from src.services import rabbitmq as rmq
 from src.config import get_settings
 from src.api.schemas import CampaignCreate
-from src.api.middleware import check_plan_limit
+from src.api.middleware import check_plan_limit, check_org_active
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -39,6 +39,8 @@ async def create_campaign(payload: CampaignCreate) -> dict[str, Any]:
     org = await supabase_svc.get_organization_by_account_id(payload.account_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
+
+    await check_org_active(org)
 
     # Check plan limit for campaigns
     await check_plan_limit(org["id"], "campaigns")

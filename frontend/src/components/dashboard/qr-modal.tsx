@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, X, RefreshCw } from "lucide-react";
 
@@ -15,7 +15,8 @@ export function QrModal({ instanceId, open, onClose }: QrModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchQr = async () => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchQr = useCallback(async (retryCount = 0) => {
     setLoading(true);
     setError("");
     try {
@@ -27,20 +28,31 @@ export function QrModal({ instanceId, open, onClose }: QrModalProps) {
         throw new Error(data.detail || "Erro ao buscar QR Code");
       }
       const data = await res.json();
-      setQrCode(data.qrcode || "");
-      if (!data.qrcode) {
+      if (data.qrcode) {
+        setQrCode(data.qrcode);
+      } else if (retryCount < 3) {
+        const delay = (retryCount + 1) * 2000;
+        setTimeout(() => fetchQr(retryCount + 1), delay);
+        return;
+      } else {
         setError("QR Code nao disponivel. Tente novamente em alguns segundos.");
       }
     } catch (err: any) {
+      if (retryCount < 3) {
+        const delay = (retryCount + 1) * 2000;
+        setTimeout(() => fetchQr(retryCount + 1), delay);
+        return;
+      }
       setError(err.message || "Erro ao buscar QR Code");
     } finally {
       setLoading(false);
     }
-  };
+  }, [instanceId]);
 
   useEffect(() => {
     if (open && instanceId) {
-      fetchQr();
+      const timer = setTimeout(() => fetchQr(), 1500);
+      return () => clearTimeout(timer);
     }
     return () => {
       setQrCode("");

@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardShell } from "./dashboard-shell";
+import { AdminShell } from "@/components/admin/admin-shell";
 
-export default async function DashboardLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -24,11 +24,9 @@ export default async function DashboardLayout({
     .eq("id", user.id)
     .single();
 
-  const isSuperAdmin = profile?.is_superadmin === true;
+  if (!profile?.is_superadmin) {
+    redirect("/dashboard");
+  }
 
-  return (
-    <DashboardShell userEmail={user.email} isSuperAdmin={isSuperAdmin}>
-      {children}
-    </DashboardShell>
-  );
+  return <AdminShell>{children}</AdminShell>;
 }
