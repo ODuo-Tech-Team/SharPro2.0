@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -64,12 +64,18 @@ export function ChatSidebar({
   const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState("");
 
+  // Use refs to avoid stale closures in polling intervals
+  const statusFilterRef = useRef(statusFilter);
+  statusFilterRef.current = statusFilter;
+
   const fetchConversations = useCallback(
     async (pageNum: number, reset: boolean = false) => {
-      setLoading(true);
+      if (reset) setLoading(true);
       try {
+        const currentStatus = statusFilterRef.current;
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}?status=${statusFilter}&page=${pageNum}`
+          `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}?status=${currentStatus}&page=${pageNum}&_t=${Date.now()}`,
+          { cache: "no-store" }
         );
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
@@ -84,25 +90,25 @@ export function ChatSidebar({
         }
 
         const allCount = meta.all_count ?? 0;
-        const currentTotal = reset ? payload.length : conversations.length + payload.length;
-        setHasMore(currentTotal < allCount);
+        setHasMore(payload.length > 0 && (reset ? payload.length : 0) < allCount);
       } catch (err) {
         console.error("Error fetching conversations:", err);
       } finally {
         setLoading(false);
       }
     },
-    [accountId, statusFilter, conversations.length]
+    [accountId]
   );
 
   useEffect(() => {
     setPage(1);
+    setConversations([]);
     fetchConversations(1, true);
 
-    // Poll for new conversations every 5s
-    const interval = setInterval(() => fetchConversations(1, true), 5000);
+    // Poll for updated conversations every 3s
+    const interval = setInterval(() => fetchConversations(1, true), 3000);
     return () => clearInterval(interval);
-  }, [statusFilter, accountId]);
+  }, [statusFilter, accountId, fetchConversations]);
 
   const handleLoadMore = () => {
     const nextPage = page + 1;

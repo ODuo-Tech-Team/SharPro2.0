@@ -71,7 +71,8 @@ export function ChatMessages({
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}/${conversationId}/messages`
+        `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}/${conversationId}/messages?_t=${Date.now()}`,
+        { cache: "no-store" }
       );
       if (!res.ok) throw new Error("Failed to fetch messages");
       const data = await res.json();
