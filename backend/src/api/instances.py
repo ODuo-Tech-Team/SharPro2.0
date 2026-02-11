@@ -149,9 +149,10 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, A
     settings = get_settings()
     uazapi_ok = False
 
-    # Step 0: Fetch the EXACT name of the existing Chatwoot inbox.
-    # Uazapi identifies inboxes by nameInbox, so we MUST pass the real name.
-    # If the name doesn't match, Uazapi creates a NEW inbox instead of reusing.
+    # Step 0: Fetch the EXACT name of the existing Chatwoot inbox AND
+    # update its webhook URL to point to THIS instance's token.
+    # Uazapi checks the webhook URL to decide if an inbox "belongs" to it.
+    # If the webhook has a different token, Uazapi creates a NEW inbox (e.g. "teste-ia-1").
     inbox_name = ""
     try:
         inbox_data = await chatwoot_svc.get_inbox(
@@ -164,6 +165,22 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, A
         logger.info("Fetched inbox %d name: '%s'", inbox_id, inbox_name)
     except Exception as exc:
         logger.warning("Could not fetch inbox name (will fallback to 'WhatsApp'): %s", exc)
+
+    # Step 0.5: Update the inbox webhook URL to this instance's token BEFORE
+    # configuring Uazapi.  This way Uazapi sees the inbox already has its token
+    # in the webhook and reuses it instead of creating a duplicate.
+    chatwoot_webhook_url = f"{settings.uazapi_base_url}/chatwoot/webhook/{uazapi_token}"
+    try:
+        await chatwoot_svc.update_inbox(
+            url=chatwoot_url,
+            token=chatwoot_token,
+            account_id=chatwoot_account_id,
+            inbox_id=inbox_id,
+            webhook_url=chatwoot_webhook_url,
+        )
+        logger.info("Inbox %d webhook updated to new token: %s", inbox_id, chatwoot_webhook_url)
+    except Exception as exc:
+        logger.warning("Could not update inbox webhook (non-critical): %s", exc)
 
     # Step 1: Configure Uazapi Chatwoot integration (PUT /chatwoot/config)
     # Uazapi does NOT accept inbox_id - it identifies inboxes by nameInbox.
