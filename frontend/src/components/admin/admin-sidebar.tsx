@@ -20,12 +20,12 @@ export function AdminSidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-shark-dark">
       {/* Logo */}
-      <div className="flex h-20 items-center justify-center border-b border-white/10 px-4">
+      <div className="flex h-16 items-center justify-center border-b border-white/10 overflow-hidden">
         <Image
           src="/LogoShark.png"
           alt="SharkPro"
-          width={160}
-          height={60}
+          width={120}
+          height={45}
           className="object-contain invert hue-rotate-[180deg] mix-blend-screen"
         />
       </div>
