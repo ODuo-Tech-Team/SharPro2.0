@@ -17,6 +17,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from src.config import get_settings
 from src.services import supabase_client as supabase_svc
 from src.services import chatwoot as chatwoot_svc
 from src.services import uazapi as uazapi_svc
@@ -130,23 +131,25 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
     # Step 6: Configure webhook on Uazapi
     if uazapi_token:
         try:
-            webhook_url = f"{org['chatwoot_url']}/webhooks/chatwoot"
-            await uazapi_svc.set_webhook(instance_name, uazapi_token, webhook_url)
+            settings = get_settings()
+            webhook_url = f"{settings.api_base_url}/webhooks/uazapi"
+            await uazapi_svc.set_webhook(uazapi_token, webhook_url)
         except Exception:
             logger.warning("Failed to set webhook for '%s'. Can be configured later.", instance_name)
 
-    # Step 7: Get QR code
+    # Step 7: Connect instance (generates QR code)
     qr_data = {}
     if uazapi_token:
         try:
-            qr_data = await uazapi_svc.get_qr_code(instance_name, uazapi_token)
+            qr_data = await uazapi_svc.connect_instance(uazapi_token)
         except Exception:
-            logger.warning("Failed to get QR code for '%s'.", instance_name)
+            logger.warning("Failed to start connection for '%s'.", instance_name)
 
     return {
         "status": "ok",
         "instance": instance,
-        "qrcode": qr_data.get("qrcode", ""),
+        "qrcode": qr_data.get("qrcode", qr_data.get("base64", "")),
+        "pairingCode": qr_data.get("pairingCode", ""),
     }
 
 
@@ -161,11 +164,12 @@ async def get_qr_code(instance_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Instance has no Uazapi token")
 
     try:
-        qr_data = await uazapi_svc.get_qr_code(
-            instance["instance_name"],
-            instance["uazapi_token"],
-        )
-        return {"status": "ok", "qrcode": qr_data.get("qrcode", "")}
+        qr_data = await uazapi_svc.connect_instance(instance["uazapi_token"])
+        return {
+            "status": "ok",
+            "qrcode": qr_data.get("qrcode", qr_data.get("base64", "")),
+            "pairingCode": qr_data.get("pairingCode", ""),
+        }
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Uazapi error: {exc}")
 
@@ -181,10 +185,7 @@ async def get_instance_status(instance_id: str) -> dict[str, Any]:
         return {"status": "ok", "connection": "no_token", "instance": instance}
 
     try:
-        status_data = await uazapi_svc.get_instance_status(
-            instance["instance_name"],
-            instance["uazapi_token"],
-        )
+        status_data = await uazapi_svc.get_instance_status(instance["uazapi_token"])
         is_connected = status_data.get("connected", False) or status_data.get("status") == "CONNECTED"
         new_status = "connected" if is_connected else "disconnected"
         phone = status_data.get("phoneNumber", "") or status_data.get("phone", "")
@@ -215,7 +216,7 @@ async def delete_instance(instance_id: str) -> dict[str, Any]:
 
     if instance.get("uazapi_token"):
         try:
-            await uazapi_svc.delete_instance(instance["instance_name"])
+            await uazapi_svc.delete_instance(instance["uazapi_token"])
         except Exception:
             logger.warning("Failed to delete Uazapi instance '%s'. Continuing with DB cleanup.", instance["instance_name"])
 

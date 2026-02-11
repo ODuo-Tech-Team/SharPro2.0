@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     uazapi_base_url: str = ""
     uazapi_global_token: str = ""
 
+    # -- Public API URL (for webhook callbacks) --
+    api_base_url: str = ""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
