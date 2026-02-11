@@ -73,36 +73,55 @@ async def get_all_organizations_with_details() -> list[dict[str, Any]]:
     """List all organizations with plan name, owner email, and instance status."""
     try:
         client = _get_client()
-        response = (
-            client.table("organizations")
-            .select("*, plans(id, name)")
-            .order("created_at", desc=True)
-            .execute()
-        )
+
+        # Try with plans join first, fallback to plain select
+        try:
+            response = (
+                client.table("organizations")
+                .select("*, plans(id, name)")
+                .order("created_at", desc=True)
+                .execute()
+            )
+        except Exception:
+            logger.warning("Plans join failed, fetching orgs without plan details.")
+            response = (
+                client.table("organizations")
+                .select("*")
+                .order("created_at", desc=True)
+                .execute()
+            )
+
         orgs = response.data or []
 
         for org in orgs:
-            # Get owner (first admin profile for this org)
-            owner_res = (
-                client.table("profiles")
-                .select("id, email, full_name")
-                .eq("organization_id", org["id"])
-                .eq("role", "admin")
-                .limit(1)
-                .execute()
-            )
-            org["owner"] = owner_res.data[0] if owner_res.data else None
+            # Get owner (first admin profile for this org) - non-critical
+            try:
+                owner_res = (
+                    client.table("profiles")
+                    .select("id, email, full_name")
+                    .eq("organization_id", org["id"])
+                    .eq("role", "admin")
+                    .limit(1)
+                    .execute()
+                )
+                org["owner"] = owner_res.data[0] if owner_res.data else None
+            except Exception:
+                org["owner"] = None
 
-            # Get instance count and status
-            inst_res = (
-                client.table("whatsapp_instances")
-                .select("id, status")
-                .eq("organization_id", org["id"])
-                .execute()
-            )
-            instances = inst_res.data or []
-            org["instance_count"] = len(instances)
-            org["whatsapp_connected"] = any(i.get("status") == "connected" for i in instances)
+            # Get instance count and status - non-critical
+            try:
+                inst_res = (
+                    client.table("whatsapp_instances")
+                    .select("id, status")
+                    .eq("organization_id", org["id"])
+                    .execute()
+                )
+                instances = inst_res.data or []
+                org["instance_count"] = len(instances)
+                org["whatsapp_connected"] = any(i.get("status") == "connected" for i in instances)
+            except Exception:
+                org["instance_count"] = 0
+                org["whatsapp_connected"] = False
 
         return orgs
     except Exception:
@@ -254,7 +273,7 @@ async def get_all_plans() -> list[dict[str, Any]]:
         response = (
             client.table("plans")
             .select("*")
-            .order("price", desc=False)
+            .order("price_monthly", desc=False)
             .execute()
         )
         return response.data or []
