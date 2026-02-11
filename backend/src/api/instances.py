@@ -195,8 +195,8 @@ async def get_instance_status(instance_id: str) -> dict[str, Any]:
         status_data = await uazapi_svc.get_instance_status(instance["uazapi_token"])
         # Uazapi nests data inside "instance" key
         inst_info = status_data.get("instance", {})
-        raw_status = inst_info.get("status", status_data.get("status", ""))
-        is_connected = raw_status in ("open", "CONNECTED") or status_data.get("connected", False)
+        raw_status = (inst_info.get("status", status_data.get("status", ""))).lower()
+        is_connected = raw_status in ("open", "connected") or status_data.get("connected", False)
         new_status = "connected" if is_connected else "disconnected"
         phone = inst_info.get("phoneNumber", "") or inst_info.get("phone", "") or status_data.get("phone", "")
 
