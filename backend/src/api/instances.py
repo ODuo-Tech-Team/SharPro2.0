@@ -107,14 +107,13 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
 
 
 @instance_router.post("/{instance_id}/connect-chatwoot")
-async def connect_chatwoot(instance_id: str, account_id: int | None = None) -> dict[str, Any]:
+async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, Any]:
     """
-    Configure Uazapi ↔ Chatwoot integration using the org's existing inbox_id.
-    1. Update Chatwoot inbox webhook URL → Uazapi chatwoot webhook
-    2. Configure Uazapi built-in Chatwoot integration via PUT /chatwoot/config
+    Configure Uazapi ↔ Chatwoot integration.
+    Replicates exactly the n8n node: PUT /chatwoot/config on Uazapi.
+    """
+    logger.info("connect-chatwoot called for instance=%s, account_id=%d", instance_id, account_id)
 
-    Accepts account_id as query param to find the org reliably.
-    """
     instance = await supabase_svc.get_instance(instance_id)
     if not instance:
         raise HTTPException(status_code=404, detail="Instance not found")
@@ -123,19 +122,20 @@ async def connect_chatwoot(instance_id: str, account_id: int | None = None) -> d
     if not uazapi_token:
         raise HTTPException(status_code=400, detail="Instance has no Uazapi token")
 
-    # Get org - try account_id first (works with RLS), fallback to organization_id
-    org = None
-    if account_id:
-        org = await supabase_svc.get_organization_by_account_id(account_id)
+    # Get org by account_id (the reliable way)
+    org = await supabase_svc.get_organization_by_account_id(account_id) if account_id else None
     if not org:
-        org = await supabase_svc.get_organization_by_id(instance.get("organization_id", ""))
-    if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        raise HTTPException(status_code=404, detail=f"Organization not found for account_id={account_id}")
 
-    chatwoot_url = org.get("chatwoot_url")
-    chatwoot_token = org.get("chatwoot_token")
+    chatwoot_url = org.get("chatwoot_url", "")
+    chatwoot_token = org.get("chatwoot_token", "")
     chatwoot_account_id = org.get("chatwoot_account_id")
     inbox_id = org.get("inbox_id")
+
+    logger.info(
+        "Org found: chatwoot_url=%s, account_id=%s, inbox_id=%s, has_token=%s",
+        chatwoot_url, chatwoot_account_id, inbox_id, bool(chatwoot_token),
+    )
 
     if not all([chatwoot_url, chatwoot_token, chatwoot_account_id, inbox_id]):
         missing = []
@@ -143,14 +143,26 @@ async def connect_chatwoot(instance_id: str, account_id: int | None = None) -> d
         if not chatwoot_token: missing.append("chatwoot_token")
         if not chatwoot_account_id: missing.append("chatwoot_account_id")
         if not inbox_id: missing.append("inbox_id")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Organization missing: {', '.join(missing)}",
-        )
+        raise HTTPException(status_code=400, detail=f"Organization missing: {', '.join(missing)}")
 
     settings = get_settings()
 
-    # Step 1: Update Chatwoot inbox webhook URL → Uazapi
+    # CRITICAL: Configure Uazapi built-in Chatwoot integration
+    # This is the exact same as the n8n node: PUT /chatwoot/config
+    try:
+        result = await uazapi_svc.configure_chatwoot(
+            instance_token=uazapi_token,
+            chatwoot_url=chatwoot_url,
+            chatwoot_token=chatwoot_token,
+            account_id=chatwoot_account_id,
+            inbox_id=inbox_id,
+        )
+        logger.info("Uazapi Chatwoot config OK for instance %s: %s", instance_id, result)
+    except Exception as exc:
+        logger.exception("Failed to configure Uazapi Chatwoot.")
+        raise HTTPException(status_code=502, detail=f"Uazapi config failed: {exc}")
+
+    # NON-CRITICAL: Try to update Chatwoot inbox webhook URL
     chatwoot_webhook_url = f"{settings.uazapi_base_url}/chatwoot/webhook/{uazapi_token}"
     try:
         await chatwoot_svc.update_inbox(
@@ -161,26 +173,14 @@ async def connect_chatwoot(instance_id: str, account_id: int | None = None) -> d
             webhook_url=chatwoot_webhook_url,
         )
         logger.info("Chatwoot inbox %d webhook updated to %s", inbox_id, chatwoot_webhook_url)
-    except Exception as exc:
-        logger.exception("Failed to update Chatwoot inbox webhook.")
-        raise HTTPException(status_code=502, detail=f"Failed to update Chatwoot inbox: {exc}")
+    except Exception:
+        logger.warning("Could not update Chatwoot inbox webhook (non-critical). URL: %s", chatwoot_webhook_url)
 
-    # Step 2: Configure Uazapi built-in Chatwoot integration (exact n8n replica)
+    # Save inbox_id on the instance
     try:
-        await uazapi_svc.configure_chatwoot(
-            instance_token=uazapi_token,
-            chatwoot_url=chatwoot_url,
-            chatwoot_token=chatwoot_token,
-            account_id=chatwoot_account_id,
-            inbox_id=inbox_id,
-        )
-        logger.info("Uazapi Chatwoot integration configured for instance %s", instance_id)
-    except Exception as exc:
-        logger.exception("Failed to configure Uazapi Chatwoot integration.")
-        raise HTTPException(status_code=502, detail=f"Failed to configure Uazapi: {exc}")
-
-    # Save inbox_id on the instance for reference
-    await supabase_svc.update_instance(instance_id, {"chatwoot_inbox_id": inbox_id})
+        await supabase_svc.update_instance(instance_id, {"chatwoot_inbox_id": inbox_id})
+    except Exception:
+        logger.warning("Could not save inbox_id on instance (non-critical).")
 
     return {"status": "ok", "detail": "Chatwoot connected successfully"}
 
