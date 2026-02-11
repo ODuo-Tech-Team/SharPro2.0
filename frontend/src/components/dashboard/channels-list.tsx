@@ -55,16 +55,7 @@ export function ChannelsList({ accountId, plan }: ChannelsListProps) {
     fetchInstances();
   }, [fetchInstances]);
 
-  // Auto-open QR modal for disconnected instances
-  useEffect(() => {
-    if (loading || instances.length === 0) return;
-    const disconnected = instances.find(
-      (i) => i.status === "disconnected" || i.status === "connecting"
-    );
-    if (disconnected && !qrModalInstanceId) {
-      setQrModalInstanceId(disconnected.id);
-    }
-  }, [loading, instances]);
+  // No auto-open - QR modal only opens on explicit user action (QR Code button or Add WhatsApp)
 
   const handleCreate = async () => {
     setCreating(true);
