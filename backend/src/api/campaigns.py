@@ -24,7 +24,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException
 from src.services import supabase_client as supabase_svc
 from src.services import rabbitmq as rmq
 from src.config import get_settings
-from src.api.schemas import CampaignCreate
+from src.api.schemas import CampaignCreate, CampaignUpdate
 from src.api.middleware import check_plan_limit, check_org_active
 
 logger = logging.getLogger(__name__)
@@ -54,15 +54,36 @@ async def create_campaign(payload: CampaignCreate) -> dict[str, Any]:
     return {"status": "ok", "campaign": campaign}
 
 
+@campaign_router.patch("/{campaign_id}")
+async def update_campaign(campaign_id: str, payload: CampaignUpdate) -> dict[str, Any]:
+    """Update a draft campaign's fields."""
+    campaign = await supabase_svc.get_campaign(campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign["status"] != "draft":
+        raise HTTPException(status_code=400, detail="Can only edit draft campaigns")
+
+    updates = payload.model_dump(exclude_none=True)
+    if updates:
+        await supabase_svc.update_campaign(campaign_id, updates)
+
+    updated = await supabase_svc.get_campaign(campaign_id)
+    return {"status": "ok", "campaign": updated}
+
+
 @campaign_router.post("/{campaign_id}/upload-csv")
 async def upload_csv(campaign_id: str, file: UploadFile = File(...)) -> dict[str, Any]:
-    """Parse a CSV file and insert leads for the campaign."""
+    """Parse a CSV file and insert leads for the campaign. Replaces existing leads."""
     campaign = await supabase_svc.get_campaign(campaign_id)
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     if campaign["status"] != "draft":
         raise HTTPException(status_code=400, detail="Can only upload leads to draft campaigns")
+
+    # Delete existing leads before inserting new ones
+    await supabase_svc.delete_campaign_leads(campaign_id)
 
     content = await file.read()
     text = content.decode("utf-8-sig")

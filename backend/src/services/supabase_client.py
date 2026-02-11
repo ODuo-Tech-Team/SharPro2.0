@@ -781,6 +781,36 @@ async def update_campaign_status(
         logger.exception("Error updating campaign %s.", campaign_id)
 
 
+async def update_campaign(campaign_id: str, updates: dict[str, Any]) -> None:
+    """Update campaign fields (name, template_message, send_interval_seconds)."""
+    try:
+        client = _get_client()
+        allowed = {"name", "template_message", "send_interval_seconds"}
+        filtered = {k: v for k, v in updates.items() if k in allowed and v is not None}
+        if not filtered:
+            return
+        client.table("campaigns").update(filtered).eq("id", campaign_id).execute()
+        logger.info("Campaign %s updated fields: %s.", campaign_id, list(filtered.keys()))
+    except Exception:
+        logger.exception("Error updating campaign %s.", campaign_id)
+        raise
+
+
+async def delete_campaign_leads(campaign_id: str) -> int:
+    """Delete all leads for a campaign. Returns count deleted."""
+    try:
+        client = _get_client()
+        response = client.table("campaign_leads").delete().eq("campaign_id", campaign_id).execute()
+        count = len(response.data) if response.data else 0
+        # Reset total_leads on campaign
+        client.table("campaigns").update({"total_leads": 0}).eq("id", campaign_id).execute()
+        logger.info("Deleted %d leads for campaign %s.", count, campaign_id)
+        return count
+    except Exception:
+        logger.exception("Error deleting campaign leads for campaign %s.", campaign_id)
+        raise
+
+
 async def insert_campaign_leads_batch(
     campaign_id: str,
     org_id: str,

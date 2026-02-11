@@ -126,6 +126,16 @@ class CampaignCreate(BaseModel):
     send_interval_seconds: int = 30
 
 
+class CampaignUpdate(BaseModel):
+    """Payload for updating a draft campaign."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: Optional[str] = None
+    template_message: Optional[str] = None
+    send_interval_seconds: Optional[int] = None
+
+
 # ---------------------------------------------------------------------------
 # Instance schemas
 # ---------------------------------------------------------------------------

@@ -12,8 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Play, Pause, ExternalLink } from "lucide-react";
+import { Loader2, Play, Pause, ExternalLink, Pencil } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { EditCampaign } from "@/components/dashboard/edit-campaign";
 
 interface Campaign {
   id: string;
@@ -51,6 +52,7 @@ const statusLabels: Record<string, string> = {
 export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
 
   // Realtime subscription
   useEffect(() => {
@@ -111,6 +113,7 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
   }
 
   return (
+    <>
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {campaigns.map((campaign) => {
         const progress =
@@ -159,6 +162,16 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
               </p>
 
               <div className="flex gap-2">
+                {campaign.status === "draft" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditingCampaign(campaign)}
+                  >
+                    <Pencil className="mr-1 h-3 w-3" />
+                    Editar
+                  </Button>
+                )}
                 {(campaign.status === "draft" || campaign.status === "paused") && (
                   <Button
                     size="sm"
@@ -205,5 +218,16 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
         );
       })}
     </div>
+
+    {editingCampaign && (
+      <EditCampaign
+        campaign={editingCampaign}
+        open={!!editingCampaign}
+        onOpenChange={(open) => {
+          if (!open) setEditingCampaign(null);
+        }}
+      />
+    )}
+    </>
   );
 }
