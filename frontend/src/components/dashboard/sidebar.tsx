@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 import {
   LayoutDashboard,
   Users,
   Settings,
-  Fish,
   MessageSquare,
   Megaphone,
   MessageCircle,
@@ -59,9 +59,13 @@ export function Sidebar() {
     <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-shark-dark">
       {/* Logo / Brand */}
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-shark-blue">
-          <Fish className="h-5 w-5 text-white" />
-        </div>
+        <Image
+          src="/LogoShark.png"
+          alt="SharkPro Logo"
+          width={36}
+          height={36}
+          className="rounded-lg"
+        />
         <div>
           <h1 className="text-lg font-bold text-white">SharkPro</h1>
           <p className="text-[10px] font-medium uppercase tracking-wider text-shark-accent">

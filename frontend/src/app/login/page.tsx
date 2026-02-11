@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Fish, Loader2 } from "lucide-react";
+import Image from "next/image";
+import { Loader2 } from "lucide-react";
 
 function generateUUID(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -126,8 +127,14 @@ export default function LoginPage() {
       <Card className="relative w-full max-w-md border-white/10 bg-white/5 backdrop-blur-xl">
         <CardHeader className="space-y-4 text-center">
           {/* Logo */}
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-shark-blue to-shark-blue/80 shadow-lg shadow-shark-blue/25">
-            <Fish className="h-8 w-8 text-white" />
+          <div className="mx-auto">
+            <Image
+              src="/LogoShark.png"
+              alt="SharkPro Logo"
+              width={80}
+              height={80}
+              className="rounded-2xl"
+            />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white">SharkPro</h1>
