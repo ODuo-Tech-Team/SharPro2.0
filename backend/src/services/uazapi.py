@@ -156,7 +156,7 @@ async def configure_chatwoot(
         "access_token": chatwoot_token,
         "account_id": account_id,
         "inbox_id": inbox_id,
-        "ignore_groups": False,
+        "ignore_groups": True,
         "sign_messages": False,
         "create_new_conversation": False,
     }
