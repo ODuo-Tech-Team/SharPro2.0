@@ -58,20 +58,14 @@ export function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-shark-dark">
       {/* Logo / Brand */}
-      <div className="flex h-16 items-center gap-3 border-b border-white/10 px-6">
+      <div className="flex h-20 items-center justify-center border-b border-white/10 px-4">
         <Image
           src="/LogoShark.png"
-          alt="SharkPro Logo"
-          width={36}
-          height={36}
-          className="rounded-lg"
+          alt="SharkPro"
+          width={160}
+          height={60}
+          className="object-contain"
         />
-        <div>
-          <h1 className="text-lg font-bold text-white">SharkPro</h1>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-shark-accent">
-            AI Automation
-          </p>
-        </div>
       </div>
 
       {/* Navigation */}
