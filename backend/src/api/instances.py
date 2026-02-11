@@ -193,7 +193,7 @@ async def connect_chatwoot(instance_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Instance has no Uazapi token")
 
     # Get org for Chatwoot credentials
-    org = await supabase_svc.get_organization_full(instance["organization_id"])
+    org = await supabase_svc.get_organization_by_id(instance["organization_id"])
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 

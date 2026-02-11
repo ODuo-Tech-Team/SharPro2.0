@@ -282,6 +282,23 @@ async def get_all_plans() -> list[dict[str, Any]]:
         return []
 
 
+async def get_organization_by_id(org_id: str) -> Optional[dict[str, Any]]:
+    """Look up an organization row by its UUID."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("organizations")
+            .select("*")
+            .eq("id", org_id)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
+    except Exception:
+        logger.exception("Error querying organization id=%s.", org_id)
+        return None
+
+
 async def get_organization_by_account_id(account_id: int) -> Optional[dict[str, Any]]:
     """
     Look up an organization row by its ``chatwoot_account_id``.
