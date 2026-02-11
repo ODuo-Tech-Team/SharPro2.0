@@ -200,7 +200,11 @@ export function ChannelsList({ accountId, plan }: ChannelsListProps) {
       <QrModal
         instanceId={qrModalInstanceId ?? ""}
         open={!!qrModalInstanceId}
-        onClose={() => setQrModalInstanceId(null)}
+        onClose={() => {
+          setQrModalInstanceId(null);
+          fetchInstances();
+        }}
+        onConnected={fetchInstances}
       />
     </>
   );

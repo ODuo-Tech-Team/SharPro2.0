@@ -89,14 +89,14 @@ export function ChatMessages({
     }
   }, [accountId, conversationId]);
 
-  // Initial fetch + polling every 5s
+  // Initial fetch + polling every 2s for near real-time
   useEffect(() => {
     if (!conversationId) return;
 
     isFirstLoad.current = true;
     fetchMessages();
 
-    const interval = setInterval(fetchMessages, 5000);
+    const interval = setInterval(fetchMessages, 2000);
     return () => clearInterval(interval);
   }, [conversationId, fetchMessages]);
 

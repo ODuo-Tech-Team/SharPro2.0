@@ -2,18 +2,20 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, X, RefreshCw } from "lucide-react";
+import { Loader2, X, RefreshCw, CheckCircle } from "lucide-react";
 
 interface QrModalProps {
   instanceId: string;
   open: boolean;
   onClose: () => void;
+  onConnected?: () => void;
 }
 
-export function QrModal({ instanceId, open, onClose }: QrModalProps) {
+export function QrModal({ instanceId, open, onClose, onConnected }: QrModalProps) {
   const [qrCode, setQrCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [connected, setConnected] = useState(false);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchQr = useCallback(async (retryCount = 0) => {
@@ -49,22 +51,50 @@ export function QrModal({ instanceId, open, onClose }: QrModalProps) {
     }
   }, [instanceId]);
 
+  // Poll instance status every 5s to detect connection
+  useEffect(() => {
+    if (!open || !instanceId || connected) return;
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/status`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.connection === "connected") {
+          setConnected(true);
+          onConnected?.();
+          // Auto-close after showing success briefly
+          setTimeout(() => onClose(), 1500);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    const interval = setInterval(checkStatus, 5000);
+    return () => clearInterval(interval);
+  }, [open, instanceId, connected, onClose, onConnected]);
+
   useEffect(() => {
     if (open && instanceId) {
+      setConnected(false);
       const timer = setTimeout(() => fetchQr(), 1500);
       return () => clearTimeout(timer);
     }
     return () => {
       setQrCode("");
       setError("");
+      setConnected(false);
     };
   }, [open, instanceId]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || connected) return;
     const interval = setInterval(() => fetchQr(), 30000);
     return () => clearInterval(interval);
-  }, [open, instanceId]);
+  }, [open, instanceId, connected]);
 
   if (!open) return null;
 
@@ -84,7 +114,13 @@ export function QrModal({ instanceId, open, onClose }: QrModalProps) {
         </p>
 
         <div className="flex min-h-[280px] items-center justify-center rounded-lg border bg-white p-4">
-          {loading ? (
+          {connected ? (
+            <div className="flex flex-col items-center gap-3 text-center">
+              <CheckCircle className="h-16 w-16 text-emerald-500" />
+              <p className="text-lg font-semibold text-emerald-600">WhatsApp Conectado!</p>
+              <p className="text-sm text-muted-foreground">Fechando automaticamente...</p>
+            </div>
+          ) : loading ? (
             <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
           ) : error ? (
             <div className="text-center">

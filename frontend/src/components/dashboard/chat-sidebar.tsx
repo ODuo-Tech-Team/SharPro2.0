@@ -98,6 +98,10 @@ export function ChatSidebar({
   useEffect(() => {
     setPage(1);
     fetchConversations(1, true);
+
+    // Poll for new conversations every 5s
+    const interval = setInterval(() => fetchConversations(1, true), 5000);
+    return () => clearInterval(interval);
   }, [statusFilter, accountId]);
 
   const handleLoadMore = () => {
