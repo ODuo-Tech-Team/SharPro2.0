@@ -148,8 +148,20 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, A
 
     settings = get_settings()
 
-    # Step 1: Configure Uazapi Chatwoot integration (PUT /chatwoot/config)
-    # Pass inbox_id directly - Uazapi uses the EXISTING inbox, no autoCreate.
+    # Step 1: Get the inbox name from Chatwoot (Uazapi needs it for nameInbox)
+    inbox_name = "WhatsApp"
+    try:
+        inbox_data = await chatwoot_svc.get_inbox(
+            url=chatwoot_url, token=chatwoot_token,
+            account_id=chatwoot_account_id, inbox_id=inbox_id,
+        )
+        inbox_name = inbox_data.get("name", "WhatsApp")
+        logger.info("Inbox %d name: '%s'", inbox_id, inbox_name)
+    except Exception as exc:
+        logger.warning("Could not fetch inbox name, using fallback: %s", exc)
+
+    # Step 2: Configure Uazapi → Chatwoot integration (autoCreate=false)
+    uazapi_ok = False
     try:
         result = await uazapi_svc.configure_chatwoot(
             instance_token=uazapi_token,
@@ -157,33 +169,37 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, A
             chatwoot_token=chatwoot_token,
             account_id=chatwoot_account_id,
             inbox_id=inbox_id,
+            name_inbox=inbox_name,
         )
+        uazapi_ok = True
         logger.info("Uazapi Chatwoot config OK for instance %s: %s", instance_id, result)
     except Exception as exc:
-        logger.exception("Failed to configure Uazapi Chatwoot.")
-        raise HTTPException(status_code=502, detail=f"Uazapi config failed: {exc}")
+        logger.warning("Uazapi Chatwoot config failed (non-blocking): %s", exc)
 
-    # Step 2: Update Chatwoot inbox webhook URL to point to this instance
+    # Step 3: Update Chatwoot inbox webhook URL as safety net
     chatwoot_webhook_url = f"{settings.uazapi_base_url}/chatwoot/webhook/{uazapi_token}"
     try:
         await chatwoot_svc.update_inbox(
-            url=chatwoot_url,
-            token=chatwoot_token,
-            account_id=chatwoot_account_id,
-            inbox_id=inbox_id,
+            url=chatwoot_url, token=chatwoot_token,
+            account_id=chatwoot_account_id, inbox_id=inbox_id,
             webhook_url=chatwoot_webhook_url,
         )
         logger.info("Chatwoot inbox %d webhook updated to %s", inbox_id, chatwoot_webhook_url)
     except Exception:
         logger.warning("Could not update Chatwoot inbox webhook (non-critical).")
 
-    # Save inbox_id on the instance record
+    # Save inbox_id on the instance
     try:
         await supabase_svc.update_instance(instance_id, {"chatwoot_inbox_id": inbox_id})
     except Exception:
         logger.warning("Could not save inbox_id on instance (non-critical).")
 
-    return {"status": "ok", "detail": "Chatwoot connected", "inbox_id": inbox_id}
+    return {
+        "status": "ok",
+        "detail": "Chatwoot connected" if uazapi_ok else "Chatwoot config failed but webhook updated",
+        "uazapi_configured": uazapi_ok,
+        "inbox_id": inbox_id,
+    }
 
 
 @instance_router.get("/{instance_id}/qrcode")

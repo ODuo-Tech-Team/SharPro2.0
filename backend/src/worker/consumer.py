@@ -441,26 +441,9 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
             account_id, conversation_id, inbox_id,
         )
 
-        # Check if this message is from the correct inbox for this org
-        org_check = await supabase_svc.get_organization_by_account_id(account_id)
-        if not org_check:
-            logger.error(
-                "NO ORGANIZATION FOUND for account_id=%d. Message will fail in processing.",
-                account_id,
-            )
-        elif org_check.get("inbox_id"):
-            expected_inbox = int(org_check["inbox_id"])
-            if inbox_id and int(inbox_id) != expected_inbox:
-                logger.warning(
-                    "INBOX MISMATCH: message from inbox %s but org expects inbox %s. Skipping.",
-                    inbox_id,
-                    expected_inbox,
-                )
-                return
-            else:
-                logger.info("Inbox check OK: inbox=%s matches org expected=%s.", inbox_id, expected_inbox)
-        else:
-            logger.info("Organization has no inbox_id configured - accepting all inboxes.")
+        # Accept any message that arrives - no inbox validation.
+        # If inbox changed (reconnection), just log it.
+        logger.info("Accepting message from inbox %d for account %d.", inbox_id, account_id)
 
         # --- Check if this is a campaign lead replying ---
         sender_info = payload.get("sender", {})

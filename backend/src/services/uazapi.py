@@ -139,14 +139,16 @@ async def configure_chatwoot(
     chatwoot_token: str,
     account_id: int,
     inbox_id: int,
+    name_inbox: str = "",
 ) -> dict[str, Any]:
     """
     Configure Uazapi's built-in Chatwoot integration so messages
     flow automatically: WhatsApp → Uazapi → Chatwoot.
 
     PUT /chatwoot/config  with instance token header.
-    Passes inbox_id directly so Uazapi uses the EXISTING inbox
-    instead of creating a new one via autoCreate.
+    Uses the camelCase format that Uazapi accepts.
+    autoCreate=false so Uazapi uses the EXISTING inbox by name
+    instead of creating a duplicate.
     """
     settings = get_settings()
     url = f"{settings.uazapi_base_url}/chatwoot/config"
@@ -154,13 +156,20 @@ async def configure_chatwoot(
     logger.info("configure_chatwoot: inbox_id=%s, account=%s, url=%s", inbox_id, account_id, clean_url)
     payload = {
         "enabled": True,
+        "accountId": str(account_id),
+        "token": chatwoot_token,
         "url": clean_url,
-        "access_token": chatwoot_token,
-        "account_id": account_id,
-        "inbox_id": inbox_id,
-        "ignore_groups": False,
-        "sign_messages": False,
-        "create_new_conversation": False,
+        "signMsg": False,
+        "reopenConversation": False,
+        "conversationPending": False,
+        "nameInbox": name_inbox,
+        "mergeBrazilContacts": True,
+        "importContacts": False,
+        "importMessages": False,
+        "daysLimitImportMessages": 0,
+        "autoCreate": False,
+        "organization": "",
+        "logo": "",
     }
     client = _get_client()
     try:
