@@ -139,42 +139,28 @@ async def configure_chatwoot(
     chatwoot_token: str,
     account_id: int,
     inbox_id: int,
-    name_inbox: str = "",
 ) -> dict[str, Any]:
     """
     Configure Uazapi's built-in Chatwoot integration so messages
     flow automatically: WhatsApp → Uazapi → Chatwoot.
 
     PUT /chatwoot/config  with instance token header.
-    Uses Evolution API / Uazapi camelCase field names.
-
-    IMPORTANT: ``name_inbox`` must match the EXACT name of the existing
-    Chatwoot inbox.  If it doesn't match, Uazapi will create a new inbox
-    instead of reusing the existing one.  The caller should fetch the inbox
-    name from Chatwoot (via get_inbox) before calling this function.
+    Passes inbox_id directly so Uazapi uses the EXISTING inbox
+    instead of creating a new one via autoCreate.
     """
     settings = get_settings()
     url = f"{settings.uazapi_base_url}/chatwoot/config"
-    # Remove trailing slash from chatwoot_url (Uazapi requirement)
     clean_url = chatwoot_url.rstrip("/")
-    effective_name = name_inbox or "WhatsApp"
-    logger.info("configure_chatwoot: nameInbox='%s', account=%s, inbox=%s", effective_name, account_id, inbox_id)
+    logger.info("configure_chatwoot: inbox_id=%s, account=%s, url=%s", inbox_id, account_id, clean_url)
     payload = {
         "enabled": True,
-        "accountId": str(account_id),
-        "token": chatwoot_token,
         "url": clean_url,
-        "signMsg": False,
-        "reopenConversation": False,
-        "conversationPending": False,
-        "nameInbox": effective_name,
-        "mergeBrazilContacts": True,
-        "importContacts": False,
-        "importMessages": False,
-        "daysLimitImportMessages": 0,
-        "autoCreate": True,
-        "organization": "",
-        "logo": "",
+        "access_token": chatwoot_token,
+        "account_id": account_id,
+        "inbox_id": inbox_id,
+        "ignore_groups": False,
+        "sign_messages": False,
+        "create_new_conversation": False,
     }
     client = _get_client()
     try:
