@@ -133,7 +133,7 @@ export default function LoginPage() {
               alt="SharkPro Logo"
               width={80}
               height={80}
-              className="rounded-2xl mix-blend-screen"
+              className="rounded-2xl invert hue-rotate-[180deg] mix-blend-screen"
             />
           </div>
           <div>

@@ -26,7 +26,7 @@ export function AdminSidebar() {
           alt="SharkPro"
           width={160}
           height={60}
-          className="object-contain mix-blend-screen"
+          className="object-contain invert hue-rotate-[180deg] mix-blend-screen"
         />
       </div>
 
