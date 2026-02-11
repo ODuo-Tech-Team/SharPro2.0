@@ -17,6 +17,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from src.config import get_settings
 from src.services import supabase_client as supabase_svc
 from src.services import chatwoot as chatwoot_svc
 from src.services import uazapi as uazapi_svc
@@ -129,8 +130,22 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
         status="connecting",
     )
 
-    # Step 6: Configure Uazapi → Chatwoot integration
+    # Step 6a: Update Chatwoot inbox webhook URL → Uazapi chatwoot webhook
+    settings = get_settings()
     if uazapi_token and chatwoot_inbox_id and org.get("chatwoot_url") and org.get("chatwoot_token") and org.get("chatwoot_account_id"):
+        try:
+            chatwoot_webhook_url = f"{settings.uazapi_base_url}/chatwoot/webhook/{uazapi_token}"
+            await chatwoot_svc.update_inbox(
+                url=org["chatwoot_url"],
+                token=org["chatwoot_token"],
+                account_id=org["chatwoot_account_id"],
+                inbox_id=chatwoot_inbox_id,
+                webhook_url=chatwoot_webhook_url,
+            )
+        except Exception:
+            logger.warning("Failed to update Chatwoot inbox webhook for '%s'. Can be configured later.", instance_name)
+
+        # Step 6b: Configure Uazapi built-in Chatwoot integration
         try:
             await uazapi_svc.configure_chatwoot(
                 instance_token=uazapi_token,
@@ -140,7 +155,7 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
                 inbox_id=chatwoot_inbox_id,
             )
         except Exception:
-            logger.warning("Failed to configure Chatwoot integration for '%s'. Can be configured later.", instance_name)
+            logger.warning("Failed to configure Uazapi Chatwoot integration for '%s'. Can be configured later.", instance_name)
 
     # Step 7: Connect instance (generates QR code)
     qr_code = ""

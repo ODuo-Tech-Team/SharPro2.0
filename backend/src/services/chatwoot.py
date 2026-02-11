@@ -538,6 +538,32 @@ async def create_inbox(
         raise
 
 
+async def update_inbox(
+    url: str,
+    token: str,
+    account_id: int,
+    inbox_id: int,
+    webhook_url: str,
+) -> dict[str, Any]:
+    """Update an inbox's webhook URL in Chatwoot."""
+    endpoint = f"{url}/api/v1/accounts/{account_id}/inboxes/{inbox_id}"
+    payload = {
+        "channel": {
+            "webhook_url": webhook_url,
+        },
+    }
+    client = _get_client()
+    try:
+        response = await client.patch(endpoint, json=payload, headers=_headers(token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        logger.info("Inbox %d webhook updated to '%s'.", inbox_id, webhook_url)
+        return data
+    except httpx.HTTPStatusError as exc:
+        logger.error("Chatwoot API error %d updating inbox: %s", exc.response.status_code, exc.response.text)
+        raise
+
+
 async def close() -> None:
     """Close the shared httpx client."""
     global _client
