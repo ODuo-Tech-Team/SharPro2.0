@@ -17,7 +17,6 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from src.config import get_settings
 from src.services import supabase_client as supabase_svc
 from src.services import chatwoot as chatwoot_svc
 from src.services import uazapi as uazapi_svc
@@ -130,14 +129,18 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
         status="connecting",
     )
 
-    # Step 6: Configure webhook on Uazapi
-    if uazapi_token:
+    # Step 6: Configure Uazapi → Chatwoot integration
+    if uazapi_token and chatwoot_inbox_id and org.get("chatwoot_url") and org.get("chatwoot_token") and org.get("chatwoot_account_id"):
         try:
-            settings = get_settings()
-            webhook_url = f"{settings.api_base_url}/webhooks/uazapi"
-            await uazapi_svc.set_webhook(uazapi_token, webhook_url)
+            await uazapi_svc.configure_chatwoot(
+                instance_token=uazapi_token,
+                chatwoot_url=org["chatwoot_url"],
+                chatwoot_token=org["chatwoot_token"],
+                account_id=org["chatwoot_account_id"],
+                inbox_id=chatwoot_inbox_id,
+            )
         except Exception:
-            logger.warning("Failed to set webhook for '%s'. Can be configured later.", instance_name)
+            logger.warning("Failed to configure Chatwoot integration for '%s'. Can be configured later.", instance_name)
 
     # Step 7: Connect instance (generates QR code)
     qr_code = ""

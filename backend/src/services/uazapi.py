@@ -133,6 +133,50 @@ async def set_webhook(instance_token: str, webhook_url: str) -> dict[str, Any]:
         raise
 
 
+async def configure_chatwoot(
+    instance_token: str,
+    chatwoot_url: str,
+    chatwoot_token: str,
+    account_id: int,
+    inbox_id: int,
+) -> dict[str, Any]:
+    """
+    Configure Uazapi's built-in Chatwoot integration so messages
+    flow automatically: WhatsApp → Uazapi → Chatwoot.
+
+    PUT /chatwoot/config  with instance token header.
+    """
+    settings = get_settings()
+    url = f"{settings.uazapi_base_url}/chatwoot/config"
+    payload = {
+        "enabled": True,
+        "url": chatwoot_url,
+        "access_token": chatwoot_token,
+        "account_id": account_id,
+        "inbox_id": inbox_id,
+        "ignore_groups": False,
+        "sign_messages": False,
+        "create_new_conversation": False,
+    }
+    client = _get_client()
+    try:
+        response = await client.put(url, json=payload, headers=_instance_headers(instance_token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        logger.info("Chatwoot integration configured for instance (inbox %d).", inbox_id)
+        return data
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            "Uazapi API error %d configuring Chatwoot: %s",
+            exc.response.status_code,
+            exc.response.text,
+        )
+        raise
+    except httpx.RequestError:
+        logger.exception("Network error configuring Chatwoot integration.")
+        raise
+
+
 async def delete_instance(instance_token: str) -> dict[str, Any]:
     """
     Delete a Uazapi instance.
