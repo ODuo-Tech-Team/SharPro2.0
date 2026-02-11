@@ -90,47 +90,46 @@ export function ChatMessages({
     }
   }, [accountId, conversationId]);
 
-  // Initial fetch + SSE for real-time updates
+  // Initial fetch + fast polling + SSE enhancement
   useEffect(() => {
     if (!conversationId) return;
 
     isFirstLoad.current = true;
     fetchMessages();
 
-    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
-    let sseRetries = 0;
+    // Reliable polling every 1.5s as baseline
+    const interval = setInterval(fetchMessages, 1500);
 
-    // Connect SSE for real-time new messages
-    const sseUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/sse/messages/${accountId}/${conversationId}`;
-    const eventSource = new EventSource(sseUrl);
+    // Try SSE for instant updates (bonus - polling handles it if SSE fails)
+    let eventSource: EventSource | null = null;
+    try {
+      const sseUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/sse/messages/${accountId}/${conversationId}`;
+      eventSource = new EventSource(sseUrl);
 
-    eventSource.onmessage = (event) => {
-      try {
-        const newMsg: Message = JSON.parse(event.data);
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === newMsg.id)) return prev;
-          return [...prev, newMsg];
-        });
-        sseRetries = 0; // reset on success
-      } catch {
-        // ignore parse errors
-      }
-    };
-
-    eventSource.onerror = () => {
-      sseRetries++;
-      if (sseRetries >= 3) {
-        // SSE keeps failing - switch to polling fallback
-        eventSource.close();
-        if (!fallbackInterval) {
-          fallbackInterval = setInterval(fetchMessages, 3000);
+      eventSource.onmessage = (event) => {
+        try {
+          const newMsg: Message = JSON.parse(event.data);
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        } catch {
+          // ignore
         }
-      }
-    };
+      };
+
+      eventSource.onerror = () => {
+        // SSE failed - just close it, polling handles everything
+        eventSource?.close();
+        eventSource = null;
+      };
+    } catch {
+      // EventSource not supported or failed - polling handles it
+    }
 
     return () => {
-      eventSource.close();
-      if (fallbackInterval) clearInterval(fallbackInterval);
+      clearInterval(interval);
+      eventSource?.close();
     };
   }, [conversationId, fetchMessages]);
 
