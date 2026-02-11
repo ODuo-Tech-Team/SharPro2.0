@@ -123,6 +123,20 @@ export function ChannelsList({ accountId, plan }: ChannelsListProps) {
     }
   };
 
+  const handleDisconnect = async (instanceId: string) => {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/disconnect`,
+        { method: "POST" }
+      );
+      if (res.ok) {
+        await fetchInstances();
+      }
+    } catch (err) {
+      console.error("Error disconnecting instance:", err);
+    }
+  };
+
   return (
     <>
       <Card>
@@ -181,6 +195,7 @@ export function ChannelsList({ accountId, plan }: ChannelsListProps) {
                   onShowQr={handleShowQr}
                   onRefreshStatus={handleRefreshStatus}
                   onDelete={handleDelete}
+                  onDisconnect={handleDisconnect}
                 />
               ))}
             </div>

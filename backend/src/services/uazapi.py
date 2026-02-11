@@ -177,6 +177,27 @@ async def configure_chatwoot(
         raise
 
 
+async def disconnect_instance(instance_token: str) -> dict[str, Any]:
+    """
+    Disconnect (logout) a Uazapi instance without deleting it.
+    The instance stays but the WhatsApp session is closed.
+
+    POST /instance/disconnect  with instance token header.
+    """
+    settings = get_settings()
+    url = f"{settings.uazapi_base_url}/instance/disconnect"
+    client = _get_client()
+    try:
+        response = await client.post(url, json={}, headers=_instance_headers(instance_token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        logger.info("Uazapi instance disconnected.")
+        return data
+    except httpx.HTTPStatusError as exc:
+        logger.error("Uazapi API error %d disconnecting: %s", exc.response.status_code, exc.response.text)
+        raise
+
+
 async def delete_instance(instance_token: str) -> dict[str, Any]:
     """
     Delete a Uazapi instance.

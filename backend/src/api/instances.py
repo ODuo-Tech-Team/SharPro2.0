@@ -3,10 +3,12 @@ SharkPro V2 - WhatsApp Instance Manager API Router
 
 Provides endpoints for managing WhatsApp instances:
   - GET  /api/instances/org/{account_id}           -- List instances
-  - POST /api/instances/                            -- Create instance (full flow)
-  - GET  /api/instances/{instance_id}/qrcode        -- Get QR code
-  - GET  /api/instances/{instance_id}/status         -- Check connection status
-  - DELETE /api/instances/{instance_id}              -- Delete instance
+  - POST /api/instances/                            -- Create instance (Uazapi only)
+  - POST /api/instances/{id}/connect-chatwoot       -- Configure Chatwoot integration
+  - GET  /api/instances/{id}/qrcode                 -- Get QR code
+  - GET  /api/instances/{id}/status                 -- Check connection status
+  - POST /api/instances/{id}/disconnect             -- Disconnect WhatsApp (keep instance)
+  - DELETE /api/instances/{id}                       -- Delete instance completely
 """
 
 from __future__ import annotations
@@ -38,11 +40,7 @@ def _slugify(name: str) -> str:
 
 
 async def _generate_instance_name(org_name: str) -> str:
-    """
-    Generate a unique instance name like 'shark-pro-1', 'shark-pro-2', etc.
-
-    Checks the DB to avoid collisions.
-    """
+    """Generate a unique instance name like 'empresa-1', 'empresa-2', etc."""
     base = _slugify(org_name)
     counter = 1
     while True:
@@ -68,29 +66,24 @@ async def list_instances(account_id: int) -> dict[str, Any]:
 @instance_router.post("/")
 async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
     """
-    Full instance creation flow:
-    1. Check plan limit (max_connections)
-    2. Generate unique instance name
+    Create a new WhatsApp instance:
+    1. Check plan limit
+    2. Generate unique name
     3. Create instance in Uazapi
-    4. Create inbox in Chatwoot
-    5. Persist to DB
-    6. Configure webhook
-    7. Return instance with QR code
+    4. Persist to DB
+    (Chatwoot integration is configured separately via connect-chatwoot)
     """
     org = await supabase_svc.get_organization_by_account_id(payload.account_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
     await check_org_active(org)
-
-    # Step 1: Plan limit check
     await check_plan_limit(org["id"], "connections")
 
-    # Step 2: Generate unique name
     instance_name = await _generate_instance_name(org["name"])
     display_name = payload.display_name or f"WhatsApp {instance_name}"
 
-    # Step 3: Create in Uazapi
+    # Create in Uazapi
     try:
         uazapi_result = await uazapi_svc.create_instance(instance_name)
         uazapi_token = uazapi_result.get("token", "")
@@ -98,89 +91,25 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
         logger.exception("Failed to create Uazapi instance '%s'.", instance_name)
         raise HTTPException(status_code=502, detail=f"Uazapi error: {exc}")
 
-    # Step 4: Create Chatwoot inbox
-    chatwoot_inbox_id = None
-    chatwoot_inbox_token = ""
-    if org.get("chatwoot_url") and org.get("chatwoot_token") and org.get("chatwoot_account_id"):
-        try:
-            inbox_result = await chatwoot_svc.create_inbox(
-                url=org["chatwoot_url"],
-                token=org["chatwoot_token"],
-                account_id=org["chatwoot_account_id"],
-                name=display_name,
-                channel_type="api",
-            )
-            chatwoot_inbox_id = inbox_result.get("id")
-            chatwoot_inbox_token = (
-                inbox_result.get("channel", {}).get("hmac_token", "")
-                or inbox_result.get("inbox_identifier", "")
-                or ""
-            )
-        except Exception:
-            logger.warning("Failed to create Chatwoot inbox for '%s'. Continuing without.", instance_name)
-
-    # Step 5: Persist to DB
+    # Persist to DB
     instance = await supabase_svc.create_instance_record(
         org_id=org["id"],
         instance_name=instance_name,
         display_name=display_name,
         uazapi_token=uazapi_token,
-        chatwoot_inbox_id=chatwoot_inbox_id,
-        chatwoot_inbox_token=chatwoot_inbox_token,
         status="connecting",
     )
-
-    # Step 6a: Update Chatwoot inbox webhook URL → Uazapi chatwoot webhook
-    settings = get_settings()
-    if uazapi_token and chatwoot_inbox_id and org.get("chatwoot_url") and org.get("chatwoot_token") and org.get("chatwoot_account_id"):
-        try:
-            chatwoot_webhook_url = f"{settings.uazapi_base_url}/chatwoot/webhook/{uazapi_token}"
-            await chatwoot_svc.update_inbox(
-                url=org["chatwoot_url"],
-                token=org["chatwoot_token"],
-                account_id=org["chatwoot_account_id"],
-                inbox_id=chatwoot_inbox_id,
-                webhook_url=chatwoot_webhook_url,
-            )
-        except Exception:
-            logger.warning("Failed to update Chatwoot inbox webhook for '%s'. Can be configured later.", instance_name)
-
-        # Step 6b: Configure Uazapi built-in Chatwoot integration
-        try:
-            await uazapi_svc.configure_chatwoot(
-                instance_token=uazapi_token,
-                chatwoot_url=org["chatwoot_url"],
-                chatwoot_token=org["chatwoot_token"],
-                account_id=org["chatwoot_account_id"],
-                inbox_id=chatwoot_inbox_id,
-            )
-        except Exception:
-            logger.warning("Failed to configure Uazapi Chatwoot integration for '%s'. Can be configured later.", instance_name)
-
-    # Step 7: Connect instance (generates QR code)
-    qr_code = ""
-    pairing_code = ""
-    if uazapi_token:
-        try:
-            qr_data = await uazapi_svc.connect_instance(uazapi_token)
-            inst_data = qr_data.get("instance", {})
-            qr_code = inst_data.get("qrcode", "") or qr_data.get("qrcode", "")
-            pairing_code = inst_data.get("paircode", "") or qr_data.get("pairingCode", "")
-        except Exception:
-            logger.warning("Failed to start connection for '%s'.", instance_name)
 
     return {
         "status": "ok",
         "instance": instance,
-        "qrcode": qr_code,
-        "pairingCode": pairing_code,
     }
 
 
 @instance_router.post("/{instance_id}/connect-chatwoot")
 async def connect_chatwoot(instance_id: str) -> dict[str, Any]:
     """
-    Manually configure Uazapi ↔ Chatwoot integration for an instance.
+    Configure Uazapi ↔ Chatwoot integration using the org's existing inbox_id.
     1. Update Chatwoot inbox webhook URL → Uazapi chatwoot webhook
     2. Configure Uazapi built-in Chatwoot integration via PUT /chatwoot/config
     """
@@ -192,7 +121,7 @@ async def connect_chatwoot(instance_id: str) -> dict[str, Any]:
     if not uazapi_token:
         raise HTTPException(status_code=400, detail="Instance has no Uazapi token")
 
-    # Get org for Chatwoot credentials
+    # Get org with Chatwoot credentials + inbox_id
     org = await supabase_svc.get_organization_by_id(instance["organization_id"])
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -200,45 +129,27 @@ async def connect_chatwoot(instance_id: str) -> dict[str, Any]:
     chatwoot_url = org.get("chatwoot_url")
     chatwoot_token = org.get("chatwoot_token")
     chatwoot_account_id = org.get("chatwoot_account_id")
+    inbox_id = org.get("inbox_id")
 
-    if not all([chatwoot_url, chatwoot_token, chatwoot_account_id]):
-        raise HTTPException(status_code=400, detail="Organization missing Chatwoot config")
-
-    # If no inbox exists, create one first
-    chatwoot_inbox_id = instance.get("chatwoot_inbox_id")
-    if not chatwoot_inbox_id:
-        try:
-            display_name = instance.get("display_name") or instance.get("instance_name", "WhatsApp")
-            inbox_result = await chatwoot_svc.create_inbox(
-                url=chatwoot_url,
-                token=chatwoot_token,
-                account_id=chatwoot_account_id,
-                name=display_name,
-                channel_type="api",
-            )
-            chatwoot_inbox_id = inbox_result.get("id")
-            if chatwoot_inbox_id:
-                await supabase_svc.update_instance(instance_id, {"chatwoot_inbox_id": chatwoot_inbox_id})
-                logger.info("Created Chatwoot inbox %d for instance %s", chatwoot_inbox_id, instance_id)
-            else:
-                raise ValueError("Inbox created but no ID returned")
-        except Exception as exc:
-            logger.exception("Failed to create Chatwoot inbox.")
-            raise HTTPException(status_code=502, detail=f"Failed to create Chatwoot inbox: {exc}")
+    if not all([chatwoot_url, chatwoot_token, chatwoot_account_id, inbox_id]):
+        raise HTTPException(
+            status_code=400,
+            detail="Organization missing Chatwoot config (url, token, account_id, or inbox_id)",
+        )
 
     settings = get_settings()
 
-    # Step 1: Update Chatwoot inbox webhook URL
+    # Step 1: Update Chatwoot inbox webhook URL → Uazapi
     chatwoot_webhook_url = f"{settings.uazapi_base_url}/chatwoot/webhook/{uazapi_token}"
     try:
         await chatwoot_svc.update_inbox(
             url=chatwoot_url,
             token=chatwoot_token,
             account_id=chatwoot_account_id,
-            inbox_id=chatwoot_inbox_id,
+            inbox_id=inbox_id,
             webhook_url=chatwoot_webhook_url,
         )
-        logger.info("Chatwoot inbox %d webhook updated to %s", chatwoot_inbox_id, chatwoot_webhook_url)
+        logger.info("Chatwoot inbox %d webhook updated to %s", inbox_id, chatwoot_webhook_url)
     except Exception as exc:
         logger.exception("Failed to update Chatwoot inbox webhook.")
         raise HTTPException(status_code=502, detail=f"Failed to update Chatwoot inbox: {exc}")
@@ -250,12 +161,15 @@ async def connect_chatwoot(instance_id: str) -> dict[str, Any]:
             chatwoot_url=chatwoot_url,
             chatwoot_token=chatwoot_token,
             account_id=chatwoot_account_id,
-            inbox_id=chatwoot_inbox_id,
+            inbox_id=inbox_id,
         )
         logger.info("Uazapi Chatwoot integration configured for instance %s", instance_id)
     except Exception as exc:
         logger.exception("Failed to configure Uazapi Chatwoot integration.")
         raise HTTPException(status_code=502, detail=f"Failed to configure Uazapi: {exc}")
+
+    # Save inbox_id on the instance for reference
+    await supabase_svc.update_instance(instance_id, {"chatwoot_inbox_id": inbox_id})
 
     return {"status": "ok", "detail": "Chatwoot connected successfully"}
 
@@ -285,7 +199,6 @@ async def get_qr_code(instance_id: str) -> dict[str, Any]:
                     "qrcode": qr_code,
                     "pairingCode": pairing_code,
                 }
-            # QR not ready yet, wait and retry
             logger.info("QR code empty on attempt %d for instance %s. Retrying...", attempt + 1, instance_id)
         except Exception as exc:
             last_error = exc
@@ -311,7 +224,6 @@ async def get_instance_status(instance_id: str) -> dict[str, Any]:
 
     try:
         status_data = await uazapi_svc.get_instance_status(instance["uazapi_token"])
-        # Uazapi nests data inside "instance" key
         inst_info = status_data.get("instance", {})
         raw_status = (inst_info.get("status", status_data.get("status", ""))).lower()
         is_connected = raw_status in ("open", "connected") or status_data.get("connected", False)
@@ -333,6 +245,30 @@ async def get_instance_status(instance_id: str) -> dict[str, Any]:
         }
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Uazapi error: {exc}")
+
+
+@instance_router.post("/{instance_id}/disconnect")
+async def disconnect_instance(instance_id: str) -> dict[str, Any]:
+    """Disconnect WhatsApp from instance (logout) without deleting it."""
+    instance = await supabase_svc.get_instance(instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
+
+    if not instance.get("uazapi_token"):
+        raise HTTPException(status_code=400, detail="Instance has no Uazapi token")
+
+    try:
+        await uazapi_svc.disconnect_instance(instance["uazapi_token"])
+    except Exception as exc:
+        logger.exception("Failed to disconnect instance %s.", instance_id)
+        raise HTTPException(status_code=502, detail=f"Uazapi error: {exc}")
+
+    await supabase_svc.update_instance(instance_id, {
+        "status": "disconnected",
+        "phone_number": None,
+    })
+
+    return {"status": "ok", "detail": "WhatsApp disconnected"}
 
 
 @instance_router.delete("/{instance_id}")

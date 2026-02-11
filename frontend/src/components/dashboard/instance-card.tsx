@@ -7,7 +7,7 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { Loader2, Smartphone, Trash2, QrCode, RefreshCw } from "lucide-react";
+import { Loader2, Smartphone, Trash2, QrCode, RefreshCw, Unplug } from "lucide-react";
 
 interface WhatsAppInstance {
   id: string;
@@ -23,6 +23,7 @@ interface InstanceCardProps {
   onShowQr: (instanceId: string) => void;
   onRefreshStatus: (instanceId: string) => void;
   onDelete: (instanceId: string) => void;
+  onDisconnect: (instanceId: string) => void;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" | "outline" }> = {
@@ -33,8 +34,9 @@ const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning"
   error: { label: "Erro", variant: "destructive" },
 };
 
-export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDelete }: InstanceCardProps) {
+export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDelete, onDisconnect }: InstanceCardProps) {
   const [deleting, setDeleting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const statusInfo = STATUS_MAP[instance.status] ?? STATUS_MAP.pending;
 
   const handleDelete = async () => {
@@ -42,6 +44,13 @@ export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDelete }: 
     setDeleting(true);
     await onDelete(instance.id);
     setDeleting(false);
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm("Desconectar o WhatsApp desta instancia? Voce podera conectar outro numero depois.")) return;
+    setDisconnecting(true);
+    await onDisconnect(instance.id);
+    setDisconnecting(false);
   };
 
   return (
@@ -79,6 +88,22 @@ export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDelete }: 
             >
               <QrCode className="h-3.5 w-3.5" />
               QR Code
+            </Button>
+          )}
+          {instance.status === "connected" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="gap-1 text-xs text-orange-600 border-orange-300 hover:bg-orange-50"
+            >
+              {disconnecting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Unplug className="h-3.5 w-3.5" />
+              )}
+              Desconectar
             </Button>
           )}
           <Button
