@@ -192,10 +192,6 @@ async def connect_chatwoot(instance_id: str) -> dict[str, Any]:
     if not uazapi_token:
         raise HTTPException(status_code=400, detail="Instance has no Uazapi token")
 
-    chatwoot_inbox_id = instance.get("chatwoot_inbox_id")
-    if not chatwoot_inbox_id:
-        raise HTTPException(status_code=400, detail="Instance has no Chatwoot inbox")
-
     # Get org for Chatwoot credentials
     org = await supabase_svc.get_organization_full(instance["organization_id"])
     if not org:
@@ -207,6 +203,28 @@ async def connect_chatwoot(instance_id: str) -> dict[str, Any]:
 
     if not all([chatwoot_url, chatwoot_token, chatwoot_account_id]):
         raise HTTPException(status_code=400, detail="Organization missing Chatwoot config")
+
+    # If no inbox exists, create one first
+    chatwoot_inbox_id = instance.get("chatwoot_inbox_id")
+    if not chatwoot_inbox_id:
+        try:
+            display_name = instance.get("display_name") or instance.get("instance_name", "WhatsApp")
+            inbox_result = await chatwoot_svc.create_inbox(
+                url=chatwoot_url,
+                token=chatwoot_token,
+                account_id=chatwoot_account_id,
+                name=display_name,
+                channel_type="api",
+            )
+            chatwoot_inbox_id = inbox_result.get("id")
+            if chatwoot_inbox_id:
+                await supabase_svc.update_instance(instance_id, {"chatwoot_inbox_id": chatwoot_inbox_id})
+                logger.info("Created Chatwoot inbox %d for instance %s", chatwoot_inbox_id, instance_id)
+            else:
+                raise ValueError("Inbox created but no ID returned")
+        except Exception as exc:
+            logger.exception("Failed to create Chatwoot inbox.")
+            raise HTTPException(status_code=502, detail=f"Failed to create Chatwoot inbox: {exc}")
 
     settings = get_settings()
 
