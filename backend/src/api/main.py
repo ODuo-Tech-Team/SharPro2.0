@@ -33,6 +33,7 @@ from src.api.middleware import check_org_active
 from src.api.campaigns import campaign_router
 from src.api.instances import instance_router
 from src.api.admin import admin_router
+from src.worker.ai_engine import generate_handoff_summary
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -84,6 +85,48 @@ app.add_middleware(
 app.include_router(campaign_router)
 app.include_router(instance_router)
 app.include_router(admin_router)
+
+
+# ---------------------------------------------------------------------------
+# Smart Handoff - background summary on human takeover
+# ---------------------------------------------------------------------------
+
+async def _send_handoff_summary(account_id: int, conversation_id: int) -> None:
+    """Background task: generate AI summary and post as private note in Chatwoot."""
+    try:
+        org = await supabase_svc.get_organization_by_account_id(account_id)
+        if not org:
+            return
+
+        # Fetch recent messages from Chatwoot
+        messages = await chatwoot_svc.get_messages(
+            url=org["chatwoot_url"],
+            token=org["chatwoot_token"],
+            account_id=account_id,
+            conversation_id=conversation_id,
+        )
+
+        if not messages:
+            return
+
+        # Generate summary via GPT-4o-mini
+        summary = await generate_handoff_summary(messages)
+
+        # Post as private note
+        note_content = (
+            "**Resumo da IA (Smart Handoff)**\n\n"
+            f"{summary}"
+        )
+        await chatwoot_svc.send_private_message(
+            url=org["chatwoot_url"],
+            token=org["chatwoot_token"],
+            account_id=account_id,
+            conversation_id=conversation_id,
+            content=note_content,
+        )
+        logger.info("Smart Handoff summary posted for conversation %d.", conversation_id)
+    except Exception:
+        logger.warning("Failed to send handoff summary for conversation %d.", conversation_id, exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +264,11 @@ async def chatwoot_webhook(request: Request) -> Response:
         )
         await redis_svc.set_human_takeover(conv_id)
         await supabase_svc.set_conversation_ai_status(conv_id, "paused", status="human")
+
+        # Smart Handoff: fire-and-forget summary generation + private note
+        if account_id:
+            asyncio.create_task(_send_handoff_summary(int(account_id), conv_id))
+
         return Response(content='{"detail":"human takeover set"}', status_code=200, media_type="application/json")
 
     # ------------------------------------------------------------------

@@ -13,6 +13,7 @@ Provides endpoints for managing WhatsApp instances:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Any
@@ -146,9 +147,26 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, A
         raise HTTPException(status_code=400, detail=f"Organization missing: {', '.join(missing)}")
 
     settings = get_settings()
+    uazapi_ok = False
 
-    # CRITICAL: Configure Uazapi built-in Chatwoot integration
-    # This is the exact same as the n8n node: PUT /chatwoot/config
+    # Step 0: Fetch the EXACT name of the existing Chatwoot inbox.
+    # Uazapi identifies inboxes by nameInbox, so we MUST pass the real name.
+    # If the name doesn't match, Uazapi creates a NEW inbox instead of reusing.
+    inbox_name = ""
+    try:
+        inbox_data = await chatwoot_svc.get_inbox(
+            url=chatwoot_url,
+            token=chatwoot_token,
+            account_id=chatwoot_account_id,
+            inbox_id=inbox_id,
+        )
+        inbox_name = inbox_data.get("name", "")
+        logger.info("Fetched inbox %d name: '%s'", inbox_id, inbox_name)
+    except Exception as exc:
+        logger.warning("Could not fetch inbox name (will fallback to 'WhatsApp'): %s", exc)
+
+    # Step 1: Configure Uazapi Chatwoot integration (PUT /chatwoot/config)
+    # Uazapi does NOT accept inbox_id - it identifies inboxes by nameInbox.
     try:
         result = await uazapi_svc.configure_chatwoot(
             instance_token=uazapi_token,
@@ -156,39 +174,72 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, A
             chatwoot_token=chatwoot_token,
             account_id=chatwoot_account_id,
             inbox_id=inbox_id,
+            name_inbox=inbox_name,
         )
-        logger.info("Uazapi Chatwoot config OK for instance %s: %s", instance_id, result)
+        uazapi_ok = True
+        logger.info("Uazapi Chatwoot config OK for instance %s (nameInbox='%s'): %s", instance_id, inbox_name, result)
     except Exception as exc:
-        logger.exception("Failed to configure Uazapi Chatwoot.")
-        raise HTTPException(status_code=502, detail=f"Uazapi config failed: {exc}")
+        logger.exception("Failed to configure Uazapi Chatwoot (non-blocking): %s", exc)
 
-    # NON-CRITICAL: Try to update Chatwoot inbox webhook URL
-    chatwoot_webhook_url = f"{settings.uazapi_base_url}/chatwoot/webhook/{uazapi_token}"
+    # Step 2: Detect which inbox Uazapi is actually using.
+    # Uazapi sets the webhook URL on its inbox to contain the instance token.
+    # We find that inbox and update the org's inbox_id to match.
+    actual_inbox_id = inbox_id  # default to current
     try:
-        await chatwoot_svc.update_inbox(
+        # Give Uazapi a moment to finish configuring the inbox
+        await asyncio.sleep(2)
+
+        inboxes = await chatwoot_svc.list_inboxes(
             url=chatwoot_url,
             token=chatwoot_token,
             account_id=chatwoot_account_id,
-            inbox_id=inbox_id,
-            webhook_url=chatwoot_webhook_url,
         )
-        logger.info("Chatwoot inbox %d webhook updated to %s", inbox_id, chatwoot_webhook_url)
-    except Exception:
-        logger.warning("Could not update Chatwoot inbox webhook (non-critical). URL: %s", chatwoot_webhook_url)
+        for inbox_item in inboxes:
+            # Check webhook_url in channel or directly on inbox
+            webhook_url = ""
+            channel = inbox_item.get("channel", {})
+            if isinstance(channel, dict):
+                webhook_url = channel.get("webhook_url", "") or ""
+            if not webhook_url:
+                webhook_url = inbox_item.get("webhook_url", "") or ""
 
-    # Save inbox_id on the instance
+            if uazapi_token in webhook_url:
+                found_id = inbox_item.get("id")
+                found_name = inbox_item.get("name", "?")
+                logger.info(
+                    "Found Uazapi inbox: id=%s, name='%s', webhook='%s'",
+                    found_id, found_name, webhook_url,
+                )
+                if found_id:
+                    actual_inbox_id = int(found_id)
+                break
+
+        if actual_inbox_id != inbox_id:
+            logger.info(
+                "Org inbox_id changing from %s to %s (Uazapi-managed inbox).",
+                inbox_id, actual_inbox_id,
+            )
+            await supabase_svc.update_organization(org["id"], {"inbox_id": actual_inbox_id})
+    except Exception as exc:
+        logger.warning("Could not detect Uazapi inbox (non-critical): %s", exc)
+
+    # Save inbox_id on the instance record
     try:
-        await supabase_svc.update_instance(instance_id, {"chatwoot_inbox_id": inbox_id})
+        await supabase_svc.update_instance(instance_id, {"chatwoot_inbox_id": actual_inbox_id})
     except Exception:
         logger.warning("Could not save inbox_id on instance (non-critical).")
 
-    return {"status": "ok", "detail": "Chatwoot connected successfully"}
+    return {
+        "status": "ok",
+        "detail": "Chatwoot connected",
+        "uazapi_configured": uazapi_ok,
+        "inbox_id": actual_inbox_id,
+    }
 
 
 @instance_router.get("/{instance_id}/qrcode")
 async def get_qr_code(instance_id: str) -> dict[str, Any]:
     """Get QR code for an existing instance (with retry for race conditions)."""
-    import asyncio
 
     instance = await supabase_svc.get_instance(instance_id)
     if not instance:

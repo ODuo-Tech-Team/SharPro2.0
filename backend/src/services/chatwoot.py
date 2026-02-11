@@ -538,6 +538,46 @@ async def create_inbox(
         raise
 
 
+async def get_inbox(
+    url: str,
+    token: str,
+    account_id: int,
+    inbox_id: int,
+) -> dict[str, Any]:
+    """Get inbox details from Chatwoot (name, channel type, etc.)."""
+    endpoint = f"{url}/api/v1/accounts/{account_id}/inboxes/{inbox_id}"
+    client = _get_client()
+    try:
+        response = await client.get(endpoint, headers=_headers(token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        logger.info("Fetched inbox %d: name='%s'.", inbox_id, data.get("name", "?"))
+        return data
+    except httpx.HTTPStatusError as exc:
+        logger.error("Chatwoot API error %d fetching inbox: %s", exc.response.status_code, exc.response.text)
+        raise
+
+
+async def list_inboxes(
+    url: str,
+    token: str,
+    account_id: int,
+) -> list[dict[str, Any]]:
+    """List all inboxes for a Chatwoot account."""
+    endpoint = f"{url}/api/v1/accounts/{account_id}/inboxes"
+    client = _get_client()
+    try:
+        response = await client.get(endpoint, headers=_headers(token))
+        response.raise_for_status()
+        data = response.json()
+        inboxes: list[dict[str, Any]] = data.get("payload", data) if isinstance(data, dict) else data
+        logger.info("Listed %d inboxes for account %d.", len(inboxes), account_id)
+        return inboxes if isinstance(inboxes, list) else []
+    except httpx.HTTPStatusError as exc:
+        logger.error("Chatwoot API error %d listing inboxes: %s", exc.response.status_code, exc.response.text)
+        raise
+
+
 async def update_inbox(
     url: str,
     token: str,

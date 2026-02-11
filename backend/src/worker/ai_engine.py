@@ -358,3 +358,60 @@ async def run_completion(ctx: ConversationContext) -> str:
     final_text = assistant_message.content or ""
     logger.info("AI response generated (%d chars) for conversation %d.", len(final_text), ctx.conversation_id)
     return final_text
+
+
+# ---------------------------------------------------------------------------
+# Smart Handoff - Summary generation for human takeover
+# ---------------------------------------------------------------------------
+
+async def generate_handoff_summary(messages: list[dict[str, Any]]) -> str:
+    """
+    Generate a brief conversation summary for human agent handoff.
+
+    Uses GPT-4o-mini for fast, cheap summarization of recent messages.
+    Returns a concise summary in Portuguese.
+    """
+    settings = get_settings()
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+
+    # Build conversation text from last 20 messages
+    conversation_text = ""
+    for msg in messages[-20:]:
+        sender = msg.get("sender", {})
+        msg_type = msg.get("message_type", 0)
+        name = sender.get("name", "Cliente" if msg_type == 0 else "Agente")
+        content = msg.get("content", "")
+        if content and not msg.get("private", False):
+            conversation_text += f"{name}: {content}\n"
+
+    if not conversation_text.strip():
+        return "Sem mensagens recentes para resumir."
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Voce e um assistente que resume conversas de atendimento ao cliente. "
+                        "Gere um resumo conciso em portugues (max 3-4 frases) contendo: "
+                        "1) O que o cliente quer/precisa "
+                        "2) O que ja foi discutido/resolvido "
+                        "3) Ponto atual da conversa "
+                        "4) Qualquer informacao importante (nome, telefone, produto mencionado). "
+                        "Seja direto e objetivo."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Resuma esta conversa para o agente humano:\n\n{conversation_text}",
+                },
+            ],
+            temperature=0.3,
+            max_tokens=300,
+        )
+        return response.choices[0].message.content or "Resumo indisponivel."
+    except Exception as exc:
+        logger.warning("Failed to generate handoff summary: %s", exc)
+        return f"Erro ao gerar resumo: {exc}"
