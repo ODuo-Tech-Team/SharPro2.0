@@ -315,6 +315,37 @@ async def chatwoot_webhook(request: Request) -> Response:
             media_type="application/json",
         )
 
+    # ------------------------------------------------------------------
+    # INBOX GUARD: Only process messages from the org's configured inbox.
+    # This prevents the AI from responding in ALL inboxes of the account.
+    # ------------------------------------------------------------------
+    inbox_id = (
+        conversation.get("inbox_id")
+        or body.get("inbox", {}).get("id")
+    )
+    if inbox_id:
+        org_for_inbox_check = await supabase_svc.get_organization_by_account_id(int(account_id))
+        if org_for_inbox_check and org_for_inbox_check.get("inbox_id"):
+            expected_inbox = int(org_for_inbox_check["inbox_id"])
+            if int(inbox_id) != expected_inbox:
+                logger.warning(
+                    "INBOX MISMATCH in webhook: message from inbox %s but org expects inbox %d. "
+                    "Dropping to prevent AI responding in wrong inbox.",
+                    inbox_id, expected_inbox,
+                )
+                return Response(
+                    content='{"detail":"inbox mismatch, message ignored"}',
+                    status_code=200,
+                    media_type="application/json",
+                )
+            logger.info("Webhook inbox check OK: inbox=%s matches expected=%d.", inbox_id, expected_inbox)
+    else:
+        logger.warning(
+            "Could not extract inbox_id from webhook payload for account=%s conversation=%s. "
+            "Proceeding with caution.",
+            account_id, conversation_id,
+        )
+
     logger.info(
         "Incoming message for account=%s conversation=%s. Publishing to RabbitMQ.",
         account_id,
