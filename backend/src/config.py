@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     uazapi_base_url: str = ""
     uazapi_global_token: str = ""
 
+    # -- n8n webhooks --
+    n8n_chatwoot_webhook_url: str = ""
+
     # -- Public API URL (for webhook callbacks) --
     api_base_url: str = ""
 

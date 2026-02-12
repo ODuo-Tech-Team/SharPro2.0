@@ -20,6 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from src.config import get_settings
 from src.services import supabase_client as supabase_svc
 from src.services import uazapi as uazapi_svc
 from src.api.middleware import check_plan_limit, check_org_active
@@ -106,12 +107,19 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
 
 
 @instance_router.post("/{instance_id}/connect-chatwoot")
-async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, Any]:
+async def connect_chatwoot(instance_id: str, account_id: int = 0, inbox_id: int = 0) -> dict[str, Any]:
     """
-    Configure Uazapi ↔ Chatwoot integration.
-    Replicates exactly the n8n node: PUT /chatwoot/config on Uazapi.
+    Configure Uazapi ↔ Chatwoot integration via n8n webhook.
+
+    Delegates the actual PUT /chatwoot/config to n8n (which already works).
+    We just pass: token (from instance), inbox_id, and account_id.
     """
-    logger.info("connect-chatwoot called for instance=%s, account_id=%d", instance_id, account_id)
+    logger.info("connect-chatwoot called: instance=%s, account_id=%d, inbox_id=%d", instance_id, account_id, inbox_id)
+
+    if not inbox_id:
+        raise HTTPException(status_code=400, detail="inbox_id is required")
+    if not account_id:
+        raise HTTPException(status_code=400, detail="account_id is required")
 
     instance = await supabase_svc.get_instance(instance_id)
     if not instance:
@@ -121,44 +129,39 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0) -> dict[str, A
     if not uazapi_token:
         raise HTTPException(status_code=400, detail="Instance has no Uazapi token")
 
-    # Get org by account_id (the reliable way)
-    org = await supabase_svc.get_organization_by_account_id(account_id) if account_id else None
-    if not org:
-        raise HTTPException(status_code=404, detail=f"Organization not found for account_id={account_id}")
+    settings = get_settings()
+    if not settings.n8n_chatwoot_webhook_url:
+        raise HTTPException(status_code=500, detail="N8N_CHATWOOT_WEBHOOK_URL not configured")
 
-    chatwoot_url = org.get("chatwoot_url", "")
-    chatwoot_token = org.get("chatwoot_token", "")
-    chatwoot_account_id = org.get("chatwoot_account_id")
-    inbox_id = org.get("inbox_id")
+    # Call n8n webhook — it handles the PUT /chatwoot/config on Uazapi
+    import httpx
+    payload = {
+        "token": uazapi_token,
+        "inbox_id": inbox_id,
+        "account_id": account_id,
+    }
+    logger.info("Calling n8n webhook: %s with inbox_id=%d, account_id=%d", settings.n8n_chatwoot_webhook_url, inbox_id, account_id)
 
-    logger.info(
-        "Org found: chatwoot_url=%s, account_id=%s, inbox_id=%s, has_token=%s",
-        chatwoot_url, chatwoot_account_id, inbox_id, bool(chatwoot_token),
-    )
-
-    if not all([chatwoot_url, chatwoot_token, chatwoot_account_id, inbox_id]):
-        missing = []
-        if not chatwoot_url: missing.append("chatwoot_url")
-        if not chatwoot_token: missing.append("chatwoot_token")
-        if not chatwoot_account_id: missing.append("chatwoot_account_id")
-        if not inbox_id: missing.append("inbox_id")
-        raise HTTPException(status_code=400, detail=f"Organization missing: {', '.join(missing)}")
-
-    # ONLY do what n8n does: PUT /chatwoot/config on Uazapi. Nothing else.
     try:
-        result = await uazapi_svc.configure_chatwoot(
-            instance_token=uazapi_token,
-            chatwoot_url=chatwoot_url,
-            chatwoot_token=chatwoot_token,
-            account_id=chatwoot_account_id,
-            inbox_id=inbox_id,
-        )
-        logger.info("Uazapi Chatwoot config OK for instance %s: %s", instance_id, result)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(settings.n8n_chatwoot_webhook_url, json=payload)
+            resp.raise_for_status()
+            result = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {"raw": resp.text}
+            logger.info("n8n webhook OK for instance %s: %s", instance_id, result)
     except Exception as exc:
-        logger.exception("Failed to configure Uazapi Chatwoot.")
-        raise HTTPException(status_code=502, detail=f"Uazapi config failed: {exc}")
+        logger.exception("n8n webhook failed for instance %s.", instance_id)
+        raise HTTPException(status_code=502, detail=f"n8n webhook failed: {exc}")
 
-    return {"status": "ok", "detail": "Chatwoot connected", "inbox_id": inbox_id}
+    # Save inbox_id to the organization for the inbox guard
+    org = await supabase_svc.get_organization_by_account_id(account_id)
+    if org and (not org.get("inbox_id") or int(org.get("inbox_id", 0)) != inbox_id):
+        try:
+            await supabase_svc.update_organization(org["id"], {"inbox_id": inbox_id})
+            logger.info("Updated org %s inbox_id to %d.", org["id"], inbox_id)
+        except Exception:
+            logger.warning("Failed to update org inbox_id (non-critical).")
+
+    return {"status": "ok", "detail": "Chatwoot connected via n8n", "inbox_id": inbox_id}
 
 
 @instance_router.get("/{instance_id}/qrcode")

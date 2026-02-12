@@ -17,6 +17,7 @@ export function QrModal({ instanceId, accountId, open, onClose, onConnected }: Q
   const [chatwootConnecting, setChatwootConnecting] = useState(false);
   const [chatwootConnected, setChatwootConnected] = useState(false);
   const [chatwootError, setChatwootError] = useState("");
+  const [inboxId, setInboxId] = useState("");
 
   const [qrCode, setQrCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,11 +25,15 @@ export function QrModal({ instanceId, accountId, open, onClose, onConnected }: Q
   const [connected, setConnected] = useState(false);
 
   const connectChatwoot = async () => {
+    if (!inboxId.trim()) {
+      setChatwootError("Informe o ID da caixa de entrada (inbox_id)");
+      return;
+    }
     setChatwootConnecting(true);
     setChatwootError("");
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/connect-chatwoot?account_id=${accountId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/connect-chatwoot?account_id=${accountId}&inbox_id=${inboxId.trim()}`,
         { method: "POST" }
       );
       if (!res.ok) {
@@ -126,6 +131,7 @@ export function QrModal({ instanceId, accountId, open, onClose, onConnected }: Q
       setChatwootConnected(false);
       setChatwootConnecting(false);
       setChatwootError("");
+      setInboxId("");
       setQrCode("");
       setError("");
       setConnected(false);
@@ -173,15 +179,22 @@ export function QrModal({ instanceId, accountId, open, onClose, onConnected }: Q
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-4 text-center">
+                <div className="flex flex-col items-center gap-4 text-center w-full">
                   <Link2 className="h-12 w-12 text-shark-blue" />
                   <div>
                     <p className="text-sm font-medium">Integração Chatwoot</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Clique abaixo para configurar o webhook e a integração com o Chatwoot.
+                      Informe o ID da caixa de entrada do Chatwoot para conectar.
                     </p>
                   </div>
-                  <Button onClick={connectChatwoot} className="gap-2 bg-shark-blue hover:bg-shark-blue/90">
+                  <input
+                    type="number"
+                    placeholder="Inbox ID (ex: 365)"
+                    value={inboxId}
+                    onChange={(e) => setInboxId(e.target.value)}
+                    className="w-full max-w-[200px] rounded-md border bg-background px-3 py-2 text-center text-sm outline-none focus:ring-2 focus:ring-shark-blue"
+                  />
+                  <Button onClick={connectChatwoot} disabled={!inboxId.trim()} className="gap-2 bg-shark-blue hover:bg-shark-blue/90">
                     <Link2 className="h-4 w-4" />
                     Conectar Chatwoot
                   </Button>
