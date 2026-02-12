@@ -165,7 +165,7 @@ async def get_organization_full(org_id: str) -> Optional[dict[str, Any]]:
 ALLOWED_ORG_UPDATE_FIELDS = {
     "plan_id", "system_prompt", "openai_api_key",
     "chatwoot_account_id", "chatwoot_url", "chatwoot_token", "inbox_id",
-    "ai_handoff_config",
+    "ai_handoff_config", "ai_config",
 }
 
 
@@ -1368,3 +1368,199 @@ async def delete_instance_record(instance_id: str) -> None:
     except Exception:
         logger.exception("Error deleting instance %s.", instance_id)
         raise
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Base (RAG)
+# ---------------------------------------------------------------------------
+
+async def insert_knowledge_file(
+    org_id: str,
+    file_name: str,
+    file_size: int,
+    mime_type: str = "application/pdf",
+) -> dict[str, Any]:
+    """Insert a knowledge file record."""
+    try:
+        client = _get_client()
+        payload = {
+            "organization_id": org_id,
+            "file_name": file_name,
+            "file_size": file_size,
+            "mime_type": mime_type,
+            "status": "processing",
+        }
+        response = client.table("knowledge_files").insert(payload).execute()
+        result = response.data[0] if response.data else {}
+        logger.info("Knowledge file inserted: %s (org=%s).", file_name, org_id)
+        return result
+    except Exception:
+        logger.exception("Error inserting knowledge file '%s' for org=%s.", file_name, org_id)
+        raise
+
+
+async def update_knowledge_file_status(
+    file_id: str,
+    status: str,
+    chunk_count: int = 0,
+) -> None:
+    """Update knowledge file processing status."""
+    try:
+        client = _get_client()
+        update_data: dict[str, Any] = {"status": status, "updated_at": "now()"}
+        if chunk_count:
+            update_data["chunk_count"] = chunk_count
+        client.table("knowledge_files").update(update_data).eq("id", file_id).execute()
+        logger.info("Knowledge file %s status updated to '%s' (chunks=%d).", file_id, status, chunk_count)
+    except Exception:
+        logger.exception("Error updating knowledge file %s.", file_id)
+        raise
+
+
+async def get_knowledge_files(org_id: str) -> list[dict[str, Any]]:
+    """List all knowledge files for an organization."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("knowledge_files")
+            .select("*")
+            .eq("organization_id", org_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return response.data or []
+    except Exception:
+        logger.exception("Error listing knowledge files for org=%s.", org_id)
+        return []
+
+
+async def delete_knowledge_file(file_id: str) -> None:
+    """Delete a knowledge file and its vectors (CASCADE)."""
+    try:
+        client = _get_client()
+        client.table("knowledge_files").delete().eq("id", file_id).execute()
+        logger.info("Deleted knowledge file %s.", file_id)
+    except Exception:
+        logger.exception("Error deleting knowledge file %s.", file_id)
+        raise
+
+
+async def insert_knowledge_vectors(vectors: list[dict[str, Any]]) -> None:
+    """Batch insert knowledge vectors."""
+    try:
+        client = _get_client()
+        if not vectors:
+            return
+        client.table("knowledge_vectors").insert(vectors).execute()
+        logger.info("Inserted %d knowledge vectors.", len(vectors))
+    except Exception:
+        logger.exception("Error inserting %d knowledge vectors.", len(vectors))
+        raise
+
+
+async def match_knowledge_vectors(
+    embedding: list[float],
+    org_id: str,
+    top_k: int = 5,
+) -> list[dict[str, Any]]:
+    """Find similar knowledge vectors using pgvector RPC."""
+    try:
+        client = _get_client()
+        response = client.rpc(
+            "match_knowledge_vectors",
+            {
+                "query_embedding": embedding,
+                "filter_org_id": org_id,
+                "match_count": top_k,
+            },
+        ).execute()
+        return response.data or []
+    except Exception:
+        logger.exception("Error matching knowledge vectors for org=%s.", org_id)
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Enhanced Leads
+# ---------------------------------------------------------------------------
+
+async def get_leads_paginated(
+    org_id: str,
+    page: int = 1,
+    per_page: int = 20,
+    search: str = "",
+    status: str = "",
+    origin: str = "",
+) -> dict[str, Any]:
+    """Get paginated leads with filters."""
+    try:
+        client = _get_client()
+        query = (
+            client.table("leads")
+            .select("*", count="exact")
+            .eq("organization_id", org_id)
+        )
+
+        if status:
+            query = query.eq("status", status)
+        if origin:
+            query = query.eq("origin", origin)
+        if search:
+            query = query.or_(f"name.ilike.%{search}%,phone.ilike.%{search}%")
+
+        query = query.order("created_at", desc=True)
+        offset = (page - 1) * per_page
+        query = query.range(offset, offset + per_page - 1)
+
+        response = query.execute()
+        return {
+            "data": response.data or [],
+            "total": response.count or 0,
+            "page": page,
+            "per_page": per_page,
+        }
+    except Exception:
+        logger.exception("Error getting paginated leads for org=%s.", org_id)
+        return {"data": [], "total": 0, "page": page, "per_page": per_page}
+
+
+async def update_lead_score(
+    lead_id: str,
+    score: int,
+    tags: list[str] | None = None,
+) -> None:
+    """Update lead score and interest tags."""
+    try:
+        client = _get_client()
+        update_data: dict[str, Any] = {"lead_score": score}
+        if tags is not None:
+            update_data["interest_tags"] = tags
+        client.table("leads").update(update_data).eq("id", lead_id).execute()
+        logger.info("Lead %s score updated to %d.", lead_id, score)
+    except Exception:
+        logger.exception("Error updating lead score for %s.", lead_id)
+
+
+async def get_leads_for_export(
+    org_id: str,
+    status: str = "",
+    origin: str = "",
+) -> list[dict[str, Any]]:
+    """Get all leads for CSV export (no pagination)."""
+    try:
+        client = _get_client()
+        query = (
+            client.table("leads")
+            .select("name, phone, status, lead_score, interest_tags, origin, created_at")
+            .eq("organization_id", org_id)
+        )
+        if status:
+            query = query.eq("status", status)
+        if origin:
+            query = query.eq("origin", origin)
+        query = query.order("created_at", desc=True)
+        response = query.execute()
+        return response.data or []
+    except Exception:
+        logger.exception("Error getting leads for export, org=%s.", org_id)
+        return []

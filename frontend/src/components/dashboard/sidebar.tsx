@@ -12,6 +12,8 @@ import {
   Megaphone,
   Smartphone,
   Shield,
+  Brain,
+  Sparkles,
 } from "lucide-react";
 
 const navigation = [
@@ -29,6 +31,16 @@ const navigation = [
     name: "Canais",
     href: "/dashboard/channels",
     icon: Smartphone,
+  },
+  {
+    name: "Treinar Robo",
+    href: "/dashboard/training",
+    icon: Brain,
+  },
+  {
+    name: "Personalidade",
+    href: "/dashboard/personality",
+    icon: Sparkles,
   },
   {
     name: "Leads",

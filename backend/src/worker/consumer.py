@@ -319,6 +319,48 @@ async def _process_batch(
         except Exception:
             logger.warning("Could not fetch empresa for account %d (non-critical).", account_id)
 
+        # 6b. Business hours check
+        ai_config = org.get("ai_config") or {}
+        bh = ai_config.get("business_hours")
+        if bh and bh.get("start") and bh.get("end"):
+            try:
+                from datetime import datetime
+                import zoneinfo
+                tz_name = bh.get("timezone", "America/Sao_Paulo")
+                try:
+                    tz = zoneinfo.ZoneInfo(tz_name)
+                except Exception:
+                    tz = zoneinfo.ZoneInfo("America/Sao_Paulo")
+                now = datetime.now(tz)
+                current_time = now.strftime("%H:%M")
+                start_time = bh["start"]
+                end_time = bh["end"]
+
+                if current_time < start_time or current_time >= end_time:
+                    outside_msg = ai_config.get(
+                        "outside_hours_message",
+                        "Obrigado pelo contato! Nosso horario de atendimento e de "
+                        f"{start_time} as {end_time}. Retornaremos em breve!"
+                    )
+                    logger.info(
+                        "Outside business hours (%s not in %s-%s) for conversation %d. Sending auto-reply.",
+                        current_time, start_time, end_time, conversation_id,
+                    )
+                    try:
+                        await redis_svc.set_ai_responding(conversation_id)
+                        await chatwoot_svc.send_message(
+                            url=org["chatwoot_url"],
+                            token=org["chatwoot_token"],
+                            account_id=account_id,
+                            conversation_id=conversation_id,
+                            content=outside_msg,
+                        )
+                    except Exception:
+                        logger.exception("Failed to send outside-hours message for conversation %d.", conversation_id)
+                    return
+            except Exception:
+                logger.warning("Business hours check failed (non-critical), proceeding with AI.")
+
         # 7. Run AI
         logger.info(
             "Running AI for conversation %d (org=%s, empresa=%s).",
@@ -337,6 +379,7 @@ async def _process_batch(
             company=org.get("name"),
             team_id=handoff_config.get("team_id") or (empresa.get("team_id") if empresa else None),
             farewell_message=handoff_config.get("farewell_message"),
+            ai_config=org.get("ai_config") or {},
         )
 
         try:
@@ -842,6 +885,38 @@ async def _run_campaign_sender(campaign_id: str) -> None:
         logger.exception("Campaign sender crashed for campaign %s.", campaign_id)
 
 
+async def _on_knowledge_message(message: AbstractIncomingMessage) -> None:
+    """Callback for knowledge processing queue. Processes PDF uploads."""
+    async with message.process():
+        try:
+            payload: dict[str, Any] = json.loads(message.body.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            logger.error("Could not decode knowledge message body. Dropping.")
+            return
+
+        file_id = payload.get("file_id")
+        org_id = payload.get("org_id")
+        file_name = payload.get("file_name")
+        file_bytes_b64 = payload.get("file_bytes_b64")
+
+        if not all([file_id, org_id, file_name, file_bytes_b64]):
+            logger.warning("Knowledge message missing required fields. Dropping.")
+            return
+
+        import base64
+        file_bytes = base64.b64decode(file_bytes_b64)
+
+        logger.info("Processing knowledge file: %s (org=%s).", file_name, org_id)
+
+        from src.services.knowledge_service import process_pdf
+        await process_pdf(
+            file_bytes=file_bytes,
+            file_name=file_name,
+            org_id=org_id,
+            file_id=file_id,
+        )
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -888,6 +963,15 @@ async def main() -> None:
         await campaign_queue.bind(exchange, routing_key="campaign")
         await campaign_queue.consume(_on_campaign_message)
         logger.info("Queue 'campaign_messages' is now consuming campaign events.")
+
+        # --- Queue 4: knowledge_processing (PDF → embeddings) ---
+        knowledge_queue = await channel.declare_queue(
+            "knowledge_processing",
+            durable=True,
+        )
+        await knowledge_queue.bind(exchange, routing_key="knowledge")
+        await knowledge_queue.consume(_on_knowledge_message)
+        logger.info("Queue 'knowledge_processing' is now consuming knowledge events.")
 
         # --- Queue 3: replay_to_message (Flow 1: reply with text) ---
         reply_queue = await channel.declare_queue(

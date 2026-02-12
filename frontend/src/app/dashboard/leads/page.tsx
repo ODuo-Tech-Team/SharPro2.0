@@ -7,6 +7,9 @@ interface Lead {
   phone: string;
   status: string;
   conversion_value: number | null;
+  lead_score: number;
+  interest_tags: string[];
+  origin: string;
   created_at: string;
 }
 
@@ -29,7 +32,7 @@ async function getLeadsData(): Promise<{ orgId: string; leads: Lead[] } | null> 
 
   const { data: leads } = await supabase
     .from("leads")
-    .select("id, name, phone, status, conversion_value, created_at")
+    .select("id, name, phone, status, conversion_value, lead_score, interest_tags, origin, created_at")
     .eq("organization_id", profile.organization_id)
     .order("created_at", { ascending: false });
 

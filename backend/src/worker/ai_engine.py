@@ -27,6 +27,7 @@ from src.services import redis_client as redis_svc
 from src.services import supabase_client as supabase_svc
 from src.services.transfer import execute_transfer
 from src.services.inactivity import process_stale_atendimentos
+from src.services.knowledge_service import search_knowledge
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +164,9 @@ class ConversationContext:
     # Smart Handoff: custom farewell message from ai_handoff_config
     farewell_message: Optional[str] = None
 
+    # AI personality config (from organizations.ai_config JSONB)
+    ai_config: dict[str, Any] = field(default_factory=dict)
+
     # Will be set to True if transfer_to_human_specialist is called
     transferred: bool = False
 
@@ -251,12 +255,23 @@ async def _execute_tool_call(
                 f"Faca upgrade do plano para registrar mais leads."
             )
 
-        await supabase_svc.insert_lead(
+        lead = await supabase_svc.insert_lead(
             org_id=ctx.organization_id,
             name=lead_name,
             phone=lead_phone,
             contact_id=ctx.contact_id,
         )
+
+        # --- Lead scoring: classify interest based on conversation ---
+        lead_id = lead.get("id") if lead else None
+        if lead_id and ctx.history:
+            try:
+                score, tags = await _classify_lead(ctx)
+                await supabase_svc.update_lead_score(lead_id, score, tags)
+                logger.info("Lead %s scored: %d, tags=%s.", lead_id, score, tags)
+            except Exception:
+                logger.warning("Lead scoring failed for %s (non-critical).", lead_id)
+
         return f"Lead '{lead_name}' registrado com sucesso."
 
     # ---------------------------------------------------------------
@@ -273,6 +288,97 @@ async def _execute_tool_call(
 
     logger.warning("Unknown tool called: %s", name)
     return f"Ferramenta desconhecida: {name}"
+
+
+async def _classify_lead(ctx: ConversationContext) -> tuple[int, list[str]]:
+    """
+    Use GPT to classify a lead's interest level and extract tags.
+
+    Returns (score: 0-100, tags: list of interest tags).
+    """
+    settings = get_settings()
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+
+    # Build conversation summary for classification
+    recent_messages = ctx.history[-10:] if ctx.history else []
+    conversation_text = "\n".join(
+        f"{'Cliente' if m['role'] == 'user' else 'Assistente'}: {m['content']}"
+        for m in recent_messages
+    )
+    conversation_text += f"\nCliente: {ctx.user_message}"
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Analise esta conversa e classifique o interesse do lead.\n"
+                        "Retorne EXATAMENTE neste formato JSON:\n"
+                        '{"score": <0-100>, "tags": ["tag1", "tag2"]}\n'
+                        "Score: 0=sem interesse, 50=moderado, 100=muito interessado.\n"
+                        "Tags: palavras-chave do interesse (ex: 'preco', 'produto_x', 'urgente', 'comparando').\n"
+                        "Maximo 5 tags. Responda APENAS com o JSON."
+                    ),
+                },
+                {"role": "user", "content": conversation_text},
+            ],
+            temperature=0.3,
+            max_tokens=100,
+        )
+
+        import json as _json
+        result_text = response.choices[0].message.content or "{}"
+        # Clean potential markdown formatting
+        result_text = result_text.strip().strip("`").strip()
+        if result_text.startswith("json"):
+            result_text = result_text[4:].strip()
+
+        data = _json.loads(result_text)
+        score = max(0, min(100, int(data.get("score", 50))))
+        tags = [str(t) for t in data.get("tags", [])][:5]
+        return score, tags
+
+    except Exception:
+        logger.warning("Lead classification failed, using defaults.")
+        return 50, []
+
+
+def _build_dynamic_prompt(system_prompt: str, ai_config: dict[str, Any]) -> str:
+    """Apply AI personality config to the system prompt."""
+    if not ai_config:
+        return system_prompt
+
+    modifiers: list[str] = []
+
+    tone = ai_config.get("tone")
+    if tone:
+        modifiers.append(f"Seu tom de comunicacao deve ser {tone}.")
+
+    length = ai_config.get("response_length")
+    if length == "curta":
+        modifiers.append("Mantenha respostas curtas e diretas (1-2 frases).")
+    elif length == "detalhada":
+        modifiers.append("Forneca respostas detalhadas e completas.")
+
+    if ai_config.get("use_emojis"):
+        modifiers.append("Use emojis de forma natural nas respostas.")
+    elif "use_emojis" in ai_config:
+        modifiers.append("NAO use emojis nas respostas.")
+
+    language = ai_config.get("language")
+    if language:
+        modifiers.append(f"Responda sempre em {language}.")
+
+    if modifiers:
+        return (
+            system_prompt
+            + "\n\n[CONFIGURACAO DE PERSONALIDADE]\n"
+            + "\n".join(modifiers)
+            + "\n[/CONFIGURACAO]"
+        )
+    return system_prompt
 
 
 # ---------------------------------------------------------------------------
@@ -292,8 +398,27 @@ async def run_completion(ctx: ConversationContext) -> str:
     # Use per-org OpenAI key if present; fall back to the global key.
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
-    # Build the messages list (append internal note instruction to system prompt)
-    full_system_prompt = ctx.system_prompt + INTERNAL_NOTE_INSTRUCTION
+    # --- RAG: inject knowledge base context ---
+    knowledge_context = ""
+    try:
+        knowledge_context = await search_knowledge(ctx.organization_id, ctx.user_message)
+    except Exception:
+        logger.warning("Knowledge search failed for org %s (non-critical).", ctx.organization_id)
+
+    rag_prefix = ""
+    if knowledge_context:
+        rag_prefix = (
+            "\n\n[CONHECIMENTO DA BASE]\n"
+            + knowledge_context
+            + "\n[/CONHECIMENTO DA BASE]\n"
+            + "Use estas informacoes para responder quando relevante.\n"
+        )
+
+    # --- Personality: apply dynamic AI config ---
+    personalized_prompt = _build_dynamic_prompt(ctx.system_prompt, ctx.ai_config)
+
+    # Build the messages list (append RAG + personality + internal note instruction)
+    full_system_prompt = personalized_prompt + rag_prefix + INTERNAL_NOTE_INSTRUCTION
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": full_system_prompt},
     ]

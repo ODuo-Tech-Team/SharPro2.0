@@ -170,3 +170,16 @@ class AdminInstanceRegister(BaseModel):
 
     uazapi_token: str
     display_name: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Knowledge schemas
+# ---------------------------------------------------------------------------
+
+class KnowledgeSimulate(BaseModel):
+    """Payload for testing the RAG knowledge base."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    account_id: int
+    question: str

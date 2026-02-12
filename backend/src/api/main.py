@@ -33,6 +33,8 @@ from src.api.middleware import check_org_active
 from src.api.campaigns import campaign_router
 from src.api.instances import instance_router
 from src.api.admin import admin_router
+from src.api.knowledge import knowledge_router
+from src.api.leads import leads_router
 from src.worker.ai_engine import generate_handoff_summary
 
 # ---------------------------------------------------------------------------
@@ -85,6 +87,8 @@ app.add_middleware(
 app.include_router(campaign_router)
 app.include_router(instance_router)
 app.include_router(admin_router)
+app.include_router(knowledge_router)
+app.include_router(leads_router)
 
 
 # ---------------------------------------------------------------------------

@@ -29,6 +29,9 @@ interface Lead {
   phone: string;
   status: string;
   conversion_value: number | null;
+  lead_score: number;
+  interest_tags: string[];
+  origin: string;
   created_at: string;
 }
 
