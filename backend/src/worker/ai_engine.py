@@ -160,6 +160,9 @@ class ConversationContext:
     contact_name: Optional[str] = None
     contact_phone: Optional[str] = None
 
+    # Smart Handoff: custom farewell message from ai_handoff_config
+    farewell_message: Optional[str] = None
+
     # Will be set to True if transfer_to_human_specialist is called
     transferred: bool = False
 
@@ -342,7 +345,7 @@ async def run_completion(ctx: ConversationContext) -> str:
 
         # If the conversation was transferred, we can stop early.
         if ctx.transferred:
-            return "Conversa transferida para um atendente humano. Obrigado!"
+            return ctx.farewell_message or "Conversa transferida para um atendente humano. Obrigado!"
 
         # Request a follow-up completion
         response = await client.chat.completions.create(

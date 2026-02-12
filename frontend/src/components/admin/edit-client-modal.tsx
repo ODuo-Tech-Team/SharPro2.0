@@ -72,6 +72,17 @@ export function EditClientModal({
   const [chatwootUrl, setChatwootUrl] = useState(organization.chatwoot_url || "");
   const [chatwootToken, setChatwootToken] = useState(organization.chatwoot_token || "");
 
+  // Tab 5: Smart Handoff
+  const existingConfig = organization.ai_handoff_config || {};
+  const [handoffEnabled, setHandoffEnabled] = useState(existingConfig.enabled === true);
+  const [handoffKeywords, setHandoffKeywords] = useState(
+    (existingConfig.keywords || []).join(", ")
+  );
+  const [handoffFarewell, setHandoffFarewell] = useState(existingConfig.farewell_message || "");
+  const [handoffTeamId, setHandoffTeamId] = useState(
+    existingConfig.team_id?.toString() || ""
+  );
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -186,6 +197,35 @@ export function EditClientModal({
     }
   };
 
+  const saveHandoff = async () => {
+    setSaving(true);
+    try {
+      const keywords = handoffKeywords
+        .split(",")
+        .map((k) => k.trim())
+        .filter(Boolean);
+
+      const config: Record<string, any> = {
+        enabled: handoffEnabled,
+        keywords,
+        farewell_message: handoffFarewell || null,
+        team_id: handoffTeamId ? parseInt(handoffTeamId) : null,
+      };
+
+      const res = await fetch(`${apiUrl}/api/admin/organizations/${organization.id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ ai_handoff_config: config }),
+      });
+      if (!res.ok) throw new Error("Erro ao salvar");
+      showMsg("Configuracao de transbordo salva!");
+    } catch (err: any) {
+      showMsg(err.message || "Erro ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
@@ -210,6 +250,9 @@ export function EditClientModal({
             </TabsTrigger>
             <TabsTrigger value="instances" className="flex-1">
               Instancias WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="handoff" className="flex-1">
+              Transbordo
             </TabsTrigger>
           </TabsList>
 
@@ -353,6 +396,67 @@ export function EditClientModal({
               orgId={organization.id}
               accessToken={accessToken}
             />
+          </TabsContent>
+
+          {/* Tab 5: Smart Handoff */}
+          <TabsContent value="handoff" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Transbordo por Palavra-chave</Label>
+                <p className="text-xs text-muted-foreground">
+                  Transfere automaticamente para humano quando detectar palavras-chave
+                </p>
+              </div>
+              <Switch checked={handoffEnabled} onCheckedChange={setHandoffEnabled} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Palavras-chave</Label>
+              <Textarea
+                rows={3}
+                value={handoffKeywords}
+                onChange={(e) => setHandoffKeywords(e.target.value)}
+                placeholder="falar com atendente, humano, pessoa real, atendente"
+                disabled={!handoffEnabled}
+              />
+              <p className="text-xs text-muted-foreground">
+                Separadas por virgula. Se o cliente enviar qualquer uma dessas palavras, sera transferido imediatamente.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Mensagem de Despedida</Label>
+              <Textarea
+                rows={2}
+                value={handoffFarewell}
+                onChange={(e) => setHandoffFarewell(e.target.value)}
+                placeholder="Estou transferindo voce para um de nossos atendentes. Aguarde um momento!"
+                disabled={!handoffEnabled}
+              />
+              <p className="text-xs text-muted-foreground">
+                Enviada ao cliente antes da transferencia. Tambem usada quando a IA decide transferir.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Team ID (opcional)</Label>
+              <Input
+                value={handoffTeamId}
+                onChange={(e) => setHandoffTeamId(e.target.value)}
+                placeholder="ID do time no Chatwoot"
+                disabled={!handoffEnabled}
+              />
+              <p className="text-xs text-muted-foreground">
+                Se preenchido, a conversa sera atribuida a esse time no Chatwoot.
+              </p>
+            </div>
+
+            <div className="flex justify-end">
+              <Button onClick={saveHandoff} disabled={saving} size="sm">
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar
+              </Button>
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>

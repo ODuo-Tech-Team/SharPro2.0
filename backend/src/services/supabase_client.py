@@ -165,6 +165,7 @@ async def get_organization_full(org_id: str) -> Optional[dict[str, Any]]:
 ALLOWED_ORG_UPDATE_FIELDS = {
     "plan_id", "system_prompt", "openai_api_key",
     "chatwoot_account_id", "chatwoot_url", "chatwoot_token", "inbox_id",
+    "ai_handoff_config",
 }
 
 

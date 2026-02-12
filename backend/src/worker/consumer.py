@@ -246,6 +246,63 @@ async def _process_batch(
             "You are a helpful sales assistant. Be polite, concise, and helpful."
         )
 
+        # 3c. Smart Handoff: keyword-based instant transfer (before AI)
+        handoff_config = org.get("ai_handoff_config") or {}
+        if handoff_config.get("enabled") and handoff_config.get("keywords"):
+            keywords: list[str] = handoff_config["keywords"]
+            msg_lower = combined_text.lower().strip()
+            matched_keyword = next(
+                (kw for kw in keywords if kw.lower() in msg_lower),
+                None,
+            )
+            if matched_keyword:
+                logger.info(
+                    "Smart Handoff KEYWORD '%s' matched for conversation %d. Transferring directly.",
+                    matched_keyword, conversation_id,
+                )
+                farewell = handoff_config.get("farewell_message") or "Conversa transferida para um atendente humano. Aguarde um momento!"
+                handoff_team_id = handoff_config.get("team_id")
+
+                # Send farewell message to customer
+                try:
+                    await redis_svc.set_ai_responding(conversation_id)
+                    await chatwoot_svc.send_message(
+                        url=org["chatwoot_url"],
+                        token=org["chatwoot_token"],
+                        account_id=account_id,
+                        conversation_id=conversation_id,
+                        content=farewell,
+                    )
+                except Exception:
+                    logger.exception("Failed to send farewell for keyword handoff, conversation %d.", conversation_id)
+
+                # Execute transfer
+                sender = payload.get("sender", {})
+                contact_id: Optional[int] = sender.get("id") if sender else None
+                contact_phone = sender.get("phone_number", "")
+                contact_name = sender.get("name", "Desconhecido")
+
+                session_id = f"{account_id}-0-{contact_id or 0}-{conversation_id}-{contact_phone}"
+                await redis_svc.set_human_takeover(conversation_id)
+                await supabase_svc.set_conversation_ai_status(conversation_id, "paused", status="human")
+
+                try:
+                    from src.services.transfer import execute_transfer
+                    await execute_transfer(
+                        nome=contact_name,
+                        resumo=f"Transbordo por palavra-chave: '{matched_keyword}'. Mensagem do cliente: {combined_text[:200]}",
+                        company=org.get("name", ""),
+                        team_id=handoff_team_id,
+                        session_id=session_id,
+                        url_chatwoot_override=org["chatwoot_url"],
+                        apikey_chatwoot_override=org["chatwoot_token"],
+                    )
+                except Exception:
+                    logger.exception("Keyword handoff transfer failed for conversation %d.", conversation_id)
+
+                logger.info("Smart Handoff completed for conversation %d (keyword='%s').", conversation_id, matched_keyword)
+                return
+
         # 4. Build conversation history
         history = await _build_history(org, account_id, conversation_id)
 
@@ -278,7 +335,8 @@ async def _process_batch(
             contact_id=contact_id,
             history=history,
             company=org.get("name"),
-            team_id=empresa.get("team_id") if empresa else None,
+            team_id=handoff_config.get("team_id") or (empresa.get("team_id") if empresa else None),
+            farewell_message=handoff_config.get("farewell_message"),
         )
 
         try:
@@ -347,7 +405,20 @@ async def _process_batch(
                     conversation_id,
                 )
         elif ctx.transferred:
-            logger.info("Conversation %d transferred - no AI response sent.", conversation_id)
+            # Send farewell message to customer when AI decided to transfer
+            farewell = ctx.farewell_message or "Conversa transferida para um atendente humano. Obrigado!"
+            try:
+                await redis_svc.set_ai_responding(conversation_id)
+                await chatwoot_svc.send_message(
+                    url=org["chatwoot_url"],
+                    token=org["chatwoot_token"],
+                    account_id=account_id,
+                    conversation_id=conversation_id,
+                    content=farewell,
+                )
+                logger.info("Farewell message sent for transferred conversation %d.", conversation_id)
+            except Exception:
+                logger.exception("Failed to send farewell for conversation %d.", conversation_id)
         else:
             logger.warning("Empty AI response for conversation %d.", conversation_id)
 

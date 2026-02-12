@@ -39,6 +39,7 @@ class OrganizationUpdate(BaseModel):
     chatwoot_url: Optional[str] = None
     chatwoot_token: Optional[str] = None
     inbox_id: Optional[int] = None
+    ai_handoff_config: Optional[dict] = None
 
 
 class StatusToggle(BaseModel):
