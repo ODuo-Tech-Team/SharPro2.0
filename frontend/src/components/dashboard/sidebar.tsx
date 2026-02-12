@@ -14,6 +14,7 @@ import {
   Shield,
   Brain,
   Sparkles,
+  TrendingUp,
 } from "lucide-react";
 
 const navigation = [
@@ -46,6 +47,11 @@ const navigation = [
     name: "Leads",
     href: "/dashboard/leads",
     icon: Users,
+  },
+  {
+    name: "Follow-up",
+    href: "/dashboard/followup",
+    icon: TrendingUp,
   },
   {
     name: "Campanhas",
