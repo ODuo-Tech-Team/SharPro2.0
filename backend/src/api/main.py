@@ -294,15 +294,18 @@ async def chatwoot_webhook(request: Request) -> Response:
             )
             return Response(content='{"detail":"ai message ignored"}', status_code=200, media_type="application/json")
 
+        # Only fire summary on the FIRST human message (takeover not yet active)
+        already_taken_over = await redis_svc.is_human_takeover(conv_id)
+
         logger.info(
-            "Human agent message detected for conversation %s. Setting takeover flag.",
-            conversation_id,
+            "Human agent message detected for conversation %s (already_takeover=%s).",
+            conversation_id, already_taken_over,
         )
         await redis_svc.set_human_takeover(conv_id)
         await supabase_svc.set_conversation_ai_status(conv_id, "paused", status="human")
 
-        # Smart Handoff: fire-and-forget summary generation + private note
-        if account_id:
+        # Smart Handoff: generate summary ONLY on first human takeover
+        if not already_taken_over and account_id:
             asyncio.create_task(_send_handoff_summary(int(account_id), conv_id))
 
         return Response(content='{"detail":"human takeover set"}', status_code=200, media_type="application/json")
