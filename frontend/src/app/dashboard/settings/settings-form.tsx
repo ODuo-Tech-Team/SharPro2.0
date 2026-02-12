@@ -194,38 +194,6 @@ export function SettingsForm({ settings, usage, allPlans }: SettingsFormProps) {
                 />
               </div>
 
-              {allPlans.length > 1 && (
-                <div className="pt-2">
-                  <p className="mb-2 text-sm font-medium text-muted-foreground">
-                    Planos disponiveis:
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {allPlans.map((p) => (
-                      <div
-                        key={p.id}
-                        className={`rounded-lg border p-3 text-center transition-colors ${
-                          p.id === plan.id
-                            ? "border-shark-blue bg-shark-blue/5"
-                            : "hover:border-muted-foreground/30"
-                        }`}
-                      >
-                        <p className="font-semibold text-sm">{p.name}</p>
-                        <p className="text-lg font-bold">
-                          R$ {p.price_monthly.toFixed(0)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {p.max_leads === -1 ? "Ilimitado" : p.max_leads} leads
-                        </p>
-                        {p.id === plan.id && (
-                          <Badge className="mt-1" variant="info">
-                            Atual
-                          </Badge>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </>
           )}
         </CardContent>

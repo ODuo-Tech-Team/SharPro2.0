@@ -3,14 +3,10 @@
 import {
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 import {
@@ -61,73 +57,6 @@ interface DashboardContentProps {
 }
 
 // ---------------------------------------------------------------------------
-// Mock / static data for charts
-// ---------------------------------------------------------------------------
-
-const pieData: { name: string; value: number; color: string }[] = [
-  { name: "Google Ads (Palavra Chave)", value: 650, color: "#3b82f6" },
-  { name: "Organico / Indicacao", value: 300, color: "#10b981" },
-  { name: "Campanhas Digitais", value: 150, color: "#8b5cf6" },
-];
-
-const funnelData: {
-  name: string;
-  Leads: number;
-  Orcamentos: number;
-  Vendas: number;
-}[] = [
-  { name: "Jan", Leads: 400, Orcamentos: 240, Vendas: 80 },
-  { name: "Fev", Leads: 300, Orcamentos: 139, Vendas: 50 },
-  { name: "Mar", Leads: 500, Orcamentos: 380, Vendas: 120 },
-  { name: "Abr", Leads: 280, Orcamentos: 190, Vendas: 60 },
-  { name: "Mai", Leads: 590, Orcamentos: 400, Vendas: 150 },
-];
-
-const mockConversations: {
-  id: number;
-  cliente: string;
-  origem: string;
-  ai_status: string;
-  interesse: string;
-}[] = [
-  {
-    id: 1,
-    cliente: "Maria Silva",
-    origem: "Google Ads",
-    ai_status: "active",
-    interesse: "Plano Premium",
-  },
-  {
-    id: 2,
-    cliente: "Joao Santos",
-    origem: "Indicacao",
-    ai_status: "paused",
-    interesse: "Consultoria",
-  },
-  {
-    id: 3,
-    cliente: "Ana Oliveira",
-    origem: "Campanha Digital",
-    ai_status: "completed",
-    interesse: "Pacote Basico",
-  },
-  {
-    id: 4,
-    cliente: "Carlos Ferreira",
-    origem: "Google Ads",
-    ai_status: "active",
-    interesse: "Plano Empresarial",
-  },
-  {
-    id: 5,
-    cliente: "Lucia Mendes",
-    origem: "Organico",
-    ai_status: "paused",
-    interesse: "Upgrade de Plano",
-  },
-];
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -138,27 +67,30 @@ function getStatusBadge(aiStatus: string): {
 } {
   switch (aiStatus) {
     case "active":
+    case "bot":
       return {
-        label: "Ativa",
+        label: "IA Ativa",
         classes:
           "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
         Icon: Zap,
       };
     case "paused":
+    case "human":
       return {
-        label: "Pausada (Humano)",
+        label: "Humano",
         classes: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
         Icon: Pause,
       };
     case "completed":
+    case "resolved":
       return {
-        label: "Finalizada (Venda)",
+        label: "Finalizada",
         classes: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
         Icon: CheckCircle,
       };
     default:
       return {
-        label: aiStatus,
+        label: aiStatus || "—",
         classes: "bg-slate-500/10 text-slate-400 border border-slate-500/20",
         Icon: Activity,
       };
@@ -173,7 +105,6 @@ interface ChartTooltipPayloadItem {
   name: string;
   value: number;
   color?: string;
-  payload?: Record<string, unknown>;
 }
 
 interface ChartTooltipProps {
@@ -224,9 +155,6 @@ export function DashboardContent({
     recentSales,
   });
 
-  // Decide whether to use real conversations or mock data
-  const hasRealConversations = recentConversations.length > 0;
-
   return (
     <div className="space-y-6">
       {/* ------------------------------------------------------------------ */}
@@ -237,7 +165,7 @@ export function DashboardContent({
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Visao Geral
           </h1>
-          <p className="text-slate-400">Bem-vindo de volta, Admin.</p>
+          <p className="text-slate-400">Acompanhe seus atendimentos e metricas.</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -265,7 +193,7 @@ export function DashboardContent({
         <div className="group rounded-xl border border-slate-800 bg-slate-900/50 p-6 transition-colors hover:border-blue-500/30">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-slate-400">
-              Faturamento (IA Confirmado)
+              Faturamento (IA)
             </p>
             <div className="rounded-lg bg-blue-500/10 p-2">
               <DollarSign className="h-5 w-5 text-blue-400" />
@@ -275,7 +203,7 @@ export function DashboardContent({
             {formatCurrency(live.totalSalesVolume)}
           </p>
           <p className="mt-1 text-xs text-emerald-400">
-            +{live.leadsTrend}% vs. semana anterior
+            {live.leadsTrend >= 0 ? "+" : ""}{live.leadsTrend}% vs. semana anterior
           </p>
         </div>
 
@@ -290,7 +218,7 @@ export function DashboardContent({
             </div>
           </div>
           <p className="mt-3 text-2xl font-bold text-white">{salesCount}</p>
-          <p className="mt-1 text-xs text-slate-500">8 vendas hoje</p>
+          <p className="mt-1 text-xs text-slate-500">Total registrado</p>
         </div>
 
         {/* Leads Totais */}
@@ -323,114 +251,60 @@ export function DashboardContent({
             {conversationsActiveCount}
           </p>
           <div className="mt-1 flex items-center gap-1.5">
-            <Activity className="h-3 w-3 animate-pulse text-amber-400" />
-            <span className="text-xs text-amber-400">Ativos agora</span>
+            {conversationsActiveCount > 0 && (
+              <Activity className="h-3 w-3 animate-pulse text-amber-400" />
+            )}
+            <span className="text-xs text-amber-400">
+              {conversationsActiveCount > 0 ? "Ativos agora" : "Nenhum ativo"}
+            </span>
           </div>
         </div>
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Charts Section                                                      */}
+      {/* Chart: Leads por Dia (ultimos 30 dias) - dados reais               */}
       {/* ------------------------------------------------------------------ */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Pie Chart - Origem dos Leads */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 lg:col-span-1">
-          <h2 className="mb-4 text-base font-semibold text-white">
-            Origem dos Leads
-          </h2>
-          <div className="h-[250px]">
+      <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <h2 className="mb-4 text-base font-semibold text-white">
+          Leads por Dia (ultimos 30 dias)
+        </h2>
+        {live.chartData.some((d: { date: string; leads: number }) => d.leads > 0) ? (
+          <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {pieData.map(
-                    (entry: { name: string; value: number; color: string }) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    )
-                  )}
-                </Pie>
-                <Tooltip
-                  content={<DarkTooltip />}
-                  contentStyle={{
-                    backgroundColor: "#1e293b",
-                    borderColor: "#334155",
-                    color: "#fff",
-                  }}
-                />
-                <Legend
-                  verticalAlign="bottom"
-                  formatter={(value: string) => (
-                    <span className="text-xs text-slate-400">{value}</span>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Bar Chart - Funil de Conversao */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-6 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-white">
-              Funil de Conversao: Leads vs Vendas
-            </h2>
-            <select className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 outline-none focus:border-blue-500">
-              <option>Ultimos 6 Meses</option>
-              <option>Ultimos 3 Meses</option>
-              <option>Este Mes</option>
-            </select>
-          </div>
-          <div className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={funnelData}>
+              <BarChart data={live.chartData}>
                 <CartesianGrid stroke="#334155" vertical={false} />
                 <XAxis
-                  dataKey="name"
+                  dataKey="date"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "#94a3b8", fontSize: 12 }}
+                  tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  interval="preserveStartEnd"
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: "#94a3b8", fontSize: 12 }}
+                  allowDecimals={false}
                 />
                 <Tooltip content={<DarkTooltip />} />
-                <Legend
-                  formatter={(value: string) => (
-                    <span className="text-xs text-slate-400">{value}</span>
-                  )}
-                />
                 <Bar
-                  dataKey="Leads"
-                  fill="#64748b"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="Orcamentos"
+                  dataKey="leads"
+                  name="Leads"
                   fill="#3b82f6"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="Vendas"
-                  fill="#10b981"
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        ) : (
+          <div className="flex h-[200px] items-center justify-center">
+            <p className="text-sm text-slate-500">Nenhum lead registrado nos ultimos 30 dias.</p>
+          </div>
+        )}
       </div>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Recent Conversations Table                                          */}
+      {/* Recent Conversations Table (dados reais)                            */}
       {/* ------------------------------------------------------------------ */}
       <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
         <div className="mb-4 flex items-center justify-between">
@@ -445,112 +319,73 @@ export function DashboardContent({
           </a>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-800 text-left">
-                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
-                  Cliente
-                </th>
-                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
-                  Origem
-                </th>
-                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
-                  Status IA
-                </th>
-                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
-                  Interesse
-                </th>
-                <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
-                  Acoes
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/50">
-              {hasRealConversations
-                ? recentConversations.map((conv: RecentConversation) => {
-                    const badge = getStatusBadge(conv.ai_status);
-                    const BadgeIcon = badge.Icon;
-                    return (
-                      <tr
-                        key={conv.conversation_id}
-                        className="transition-colors hover:bg-slate-800/30"
-                      >
-                        <td className="py-3 text-sm text-white">
-                          Conversa #{conv.conversation_id}
-                        </td>
-                        <td className="py-3 text-sm text-slate-400">
-                          WhatsApp
-                        </td>
-                        <td className="py-3">
-                          <span
-                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${badge.classes}`}
-                          >
-                            <BadgeIcon className="h-3 w-3" />
-                            {badge.label}
-                          </span>
-                        </td>
-                        <td className="py-3 text-sm text-slate-400">
-                          {conv.status}
-                        </td>
-                        <td className="py-3">
-                          <button
-                            type="button"
-                            className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                : mockConversations.map(
-                    (conv: {
-                      id: number;
-                      cliente: string;
-                      origem: string;
-                      ai_status: string;
-                      interesse: string;
-                    }) => {
-                      const badge = getStatusBadge(conv.ai_status);
-                      const BadgeIcon = badge.Icon;
-                      return (
-                        <tr
-                          key={conv.id}
-                          className="transition-colors hover:bg-slate-800/30"
+        {recentConversations.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-800 text-left">
+                  <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Conversa
+                  </th>
+                  <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Canal
+                  </th>
+                  <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Status IA
+                  </th>
+                  <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Status
+                  </th>
+                  <th className="pb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Acoes
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {recentConversations.map((conv: RecentConversation) => {
+                  const badge = getStatusBadge(conv.ai_status);
+                  const BadgeIcon = badge.Icon;
+                  return (
+                    <tr
+                      key={conv.conversation_id}
+                      className="transition-colors hover:bg-slate-800/30"
+                    >
+                      <td className="py-3 text-sm text-white">
+                        #{conv.conversation_id}
+                      </td>
+                      <td className="py-3 text-sm text-slate-400">
+                        WhatsApp
+                      </td>
+                      <td className="py-3">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${badge.classes}`}
                         >
-                          <td className="py-3 text-sm text-white">
-                            {conv.cliente}
-                          </td>
-                          <td className="py-3 text-sm text-slate-400">
-                            {conv.origem}
-                          </td>
-                          <td className="py-3">
-                            <span
-                              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${badge.classes}`}
-                            >
-                              <BadgeIcon className="h-3 w-3" />
-                              {badge.label}
-                            </span>
-                          </td>
-                          <td className="py-3 text-sm text-slate-400">
-                            {conv.interesse}
-                          </td>
-                          <td className="py-3">
-                            <button
-                              type="button"
-                              className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    }
-                  )}
-            </tbody>
-          </table>
-        </div>
+                          <BadgeIcon className="h-3 w-3" />
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="py-3 text-sm text-slate-400">
+                        {conv.status}
+                      </td>
+                      <td className="py-3">
+                        <button
+                          type="button"
+                          className="rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="flex h-[120px] items-center justify-center">
+            <p className="text-sm text-slate-500">Nenhum atendimento registrado ainda.</p>
+          </div>
+        )}
       </div>
     </div>
   );

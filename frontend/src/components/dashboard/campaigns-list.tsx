@@ -3,13 +3,12 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  Send,
   Play,
   Pause,
   CheckCircle,
   Settings,
   Loader2,
-  Plus,
+  Trash2,
 } from "lucide-react";
 import { EditCampaign } from "@/components/dashboard/edit-campaign";
 
@@ -65,6 +64,8 @@ function getStatusStyle(status: string): string {
 export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
 
   // Realtime subscription
@@ -80,7 +81,7 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
           table: "campaigns",
           filter: `organization_id=eq.${orgId}`,
         },
-        (payload: { eventType: string; new: Record<string, unknown> }) => {
+        (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => {
           if (payload.eventType === "INSERT") {
             setCampaigns((prev) => [payload.new as unknown as Campaign, ...prev]);
           } else if (payload.eventType === "UPDATE") {
@@ -88,6 +89,9 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
             setCampaigns((prev) =>
               prev.map((c) => (c.id === updated.id ? updated : c))
             );
+          } else if (payload.eventType === "DELETE") {
+            const deleted = payload.old as unknown as Campaign;
+            setCampaigns((prev) => prev.filter((c) => c.id !== deleted.id));
           }
         }
       )
@@ -110,6 +114,27 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
       console.error(`Error ${action} campaign:`, err);
     } finally {
       setLoadingAction(null);
+    }
+  };
+
+  const handleDelete = async (campaignId: string) => {
+    setDeletingId(campaignId);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/campaigns/${campaignId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Erro ao excluir campanha");
+      }
+      setCampaigns((prev) => prev.filter((c) => c.id !== campaignId));
+    } catch (err) {
+      console.error("Error deleting campaign:", err);
+      alert(err instanceof Error ? err.message : "Erro ao excluir campanha");
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -136,6 +161,7 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
             campaign.replied_count && campaign.sent_count
               ? Math.round((campaign.replied_count / campaign.sent_count) * 100)
               : 0;
+          const isConfirmingDelete = confirmDeleteId === campaign.id;
 
           return (
             <div
@@ -212,6 +238,38 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
                 >
                   <Settings className="h-4 w-4" />
                 </button>
+
+                {/* Delete button */}
+                {isConfirmingDelete ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      className="px-2 py-1 text-xs font-medium text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors"
+                      onClick={() => handleDelete(campaign.id)}
+                      disabled={deletingId === campaign.id}
+                    >
+                      {deletingId === campaign.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        "Confirmar"
+                      )}
+                    </button>
+                    <button
+                      className="px-2 py-1 text-xs text-slate-400 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors"
+                      onClick={() => setConfirmDeleteId(null)}
+                    >
+                      Nao
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="p-2 border border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-500/30 hover:bg-red-500/10 rounded-lg transition-colors"
+                    onClick={() => setConfirmDeleteId(campaign.id)}
+                    disabled={campaign.status === "active"}
+                    title={campaign.status === "active" ? "Pause a campanha antes de excluir" : "Excluir campanha"}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
           );

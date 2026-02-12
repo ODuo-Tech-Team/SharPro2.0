@@ -10,7 +10,6 @@ import {
   Settings,
   MessageSquare,
   Megaphone,
-  MessageCircle,
   Smartphone,
   Shield,
 } from "lucide-react";
@@ -40,11 +39,6 @@ const navigation = [
     name: "Campanhas",
     href: "/dashboard/campaigns",
     icon: Megaphone,
-  },
-  {
-    name: "Feedback",
-    href: "/dashboard/feedback",
-    icon: MessageCircle,
   },
   {
     name: "Configuracoes",

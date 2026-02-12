@@ -829,6 +829,17 @@ async def delete_campaign_leads(campaign_id: str) -> int:
         raise
 
 
+async def delete_campaign(campaign_id: str) -> None:
+    """Delete a campaign record."""
+    try:
+        client = _get_client()
+        client.table("campaigns").delete().eq("id", campaign_id).execute()
+        logger.info("Deleted campaign %s.", campaign_id)
+    except Exception:
+        logger.exception("Error deleting campaign %s.", campaign_id)
+        raise
+
+
 async def insert_campaign_leads_batch(
     campaign_id: str,
     org_id: str,

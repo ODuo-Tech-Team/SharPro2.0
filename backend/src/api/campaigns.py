@@ -152,6 +152,24 @@ async def pause_campaign(campaign_id: str) -> dict[str, Any]:
     return {"status": "ok", "campaign_id": campaign_id, "campaign_status": "paused"}
 
 
+@campaign_router.delete("/{campaign_id}")
+async def delete_campaign(campaign_id: str) -> dict[str, Any]:
+    """Delete a campaign and all its leads."""
+    campaign = await supabase_svc.get_campaign(campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    if campaign["status"] == "active":
+        raise HTTPException(status_code=400, detail="Cannot delete an active campaign. Pause it first.")
+
+    # Delete leads first, then the campaign itself
+    await supabase_svc.delete_campaign_leads(campaign_id)
+    await supabase_svc.delete_campaign(campaign_id)
+
+    logger.info("Campaign %s deleted.", campaign_id)
+    return {"status": "ok", "detail": "Campaign deleted"}
+
+
 @campaign_router.get("/{campaign_id}/stats")
 async def campaign_stats(campaign_id: str) -> dict[str, Any]:
     """Get progress stats for a campaign."""
