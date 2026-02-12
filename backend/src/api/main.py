@@ -342,8 +342,13 @@ async def chatwoot_webhook(request: Request) -> Response:
     else:
         logger.warning(
             "Could not extract inbox_id from webhook payload for account=%s conversation=%s. "
-            "Proceeding with caution.",
+            "Rejecting to prevent AI responding in unknown inbox.",
             account_id, conversation_id,
+        )
+        return Response(
+            content='{"detail":"inbox_id unknown, message rejected"}',
+            status_code=200,
+            media_type="application/json",
         )
 
     logger.info(
