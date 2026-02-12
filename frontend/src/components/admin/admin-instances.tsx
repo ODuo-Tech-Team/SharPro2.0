@@ -62,12 +62,12 @@ export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesP
         { headers }
       );
       if (!res.ok) {
-        throw new Error("Erro ao carregar instancias");
+        throw new Error("Erro ao carregar instâncias");
       }
       const data = await res.json();
       setInstances(data.instances || data || []);
     } catch (err: any) {
-      setError(err.message || "Erro ao carregar instancias");
+      setError(err.message || "Erro ao carregar instâncias");
     } finally {
       setLoading(false);
     }
@@ -80,7 +80,7 @@ export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesP
 
   const handleRegister = async () => {
     if (!uazapiToken.trim()) {
-      showMsg("Token da instancia e obrigatorio", "error");
+      showMsg("Token da instância é obrigatório", "error");
       return;
     }
 
@@ -100,16 +100,16 @@ export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesP
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "Erro ao registrar instancia");
+        throw new Error(errData.detail || "Erro ao registrar instância");
       }
 
       setUazapiToken("");
       setDisplayName("");
-      showMsg("Instancia registrada com sucesso!");
+      showMsg("Instância registrada com sucesso!");
       await fetchInstances();
       onUpdate?.();
     } catch (err: any) {
-      showMsg(err.message || "Erro ao registrar instancia", "error");
+      showMsg(err.message || "Erro ao registrar instância", "error");
     } finally {
       setRegistering(false);
     }
@@ -128,15 +128,15 @@ export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesP
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "Erro ao deletar instancia");
+        throw new Error(errData.detail || "Erro ao deletar instância");
       }
 
-      showMsg("Instancia removida com sucesso!");
+      showMsg("Instância removida com sucesso!");
       setConfirmDeleteId(null);
       await fetchInstances();
       onUpdate?.();
     } catch (err: any) {
-      showMsg(err.message || "Erro ao deletar instancia", "error");
+      showMsg(err.message || "Erro ao deletar instância", "error");
     } finally {
       setDeletingId(null);
     }
@@ -168,7 +168,7 @@ export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesP
       {/* Instance List */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Instancias Registradas</Label>
+          <Label className="text-sm font-medium">Instâncias Registradas</Label>
           <Button
             size="sm"
             variant="ghost"
@@ -191,7 +191,7 @@ export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesP
           </div>
         ) : instances.length === 0 ? (
           <div className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-            Nenhuma instancia registrada para esta organizacao.
+            Nenhuma instância registrada para esta organização.
           </div>
         ) : (
           <div className="space-y-2">
@@ -207,7 +207,7 @@ export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesP
                       {getInstanceName(inst)}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {inst.phone_number || "Sem numero"}
+                      {inst.phone_number || "Sem número"}
                     </p>
                   </div>
                 </div>
@@ -268,17 +268,17 @@ export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesP
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Plus className="h-4 w-4 text-muted-foreground" />
-          <Label className="text-sm font-medium">Registrar Nova Instancia</Label>
+          <Label className="text-sm font-medium">Registrar Nova Instância</Label>
         </div>
 
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">
-            Token da Instancia Uazapi *
+            Token da Instância Uazapi *
           </Label>
           <Input
             value={uazapiToken}
             onChange={(e) => setUazapiToken(e.target.value)}
-            placeholder="Cole o token da instancia Uazapi aqui"
+            placeholder="Cole o token da instância Uazapi aqui"
           />
         </div>
 
@@ -305,7 +305,7 @@ export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesP
             ) : (
               <Plus className="h-4 w-4" />
             )}
-            Registrar Instancia
+            Registrar Instância
           </Button>
         </div>
       </div>

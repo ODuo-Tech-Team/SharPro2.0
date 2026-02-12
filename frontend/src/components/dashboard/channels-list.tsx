@@ -80,7 +80,7 @@ export function ChannelsList({ accountId }: ChannelsListProps) {
         <div>
           <h2 className="text-2xl font-bold text-white">Meus Canais</h2>
           <p className="text-slate-400 mt-1">
-            Gerencie as conexoes de WhatsApp da sua empresa.
+            Gerencie as conexões de WhatsApp da sua empresa.
           </p>
         </div>
 
@@ -96,7 +96,7 @@ export function ChannelsList({ accountId }: ChannelsListProps) {
               Nenhum canal configurado
             </p>
             <p className="text-sm text-slate-400">
-              Entre em contato com o administrador para adicionar um numero.
+              Entre em contato com o administrador para adicionar um número.
             </p>
           </div>
         ) : (

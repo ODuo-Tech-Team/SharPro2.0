@@ -73,10 +73,10 @@ export default async function ConversationsPage() {
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-center">
           <p className="text-lg font-medium text-muted-foreground">
-            Nao foi possivel carregar os dados.
+            Não foi possível carregar os dados.
           </p>
           <p className="text-sm text-muted-foreground">
-            Verifique se o Chatwoot esta configurado.
+            Verifique se o Chatwoot está configurado.
           </p>
         </div>
       </div>

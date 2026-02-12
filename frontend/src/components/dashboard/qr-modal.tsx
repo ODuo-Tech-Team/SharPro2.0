@@ -37,7 +37,7 @@ export function QrModal({ instanceId, open, onClose, onConnected }: QrModalProps
         setTimeout(() => fetchQr(retryCount + 1), delay);
         return;
       } else {
-        setError("QR Code nao disponivel. Tente novamente em alguns segundos.");
+        setError("QR Code não disponível. Tente novamente em alguns segundos.");
       }
     } catch (err: any) {
       if (retryCount < 3) {

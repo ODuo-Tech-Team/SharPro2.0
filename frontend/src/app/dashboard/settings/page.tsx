@@ -99,7 +99,7 @@ export default async function SettingsPage() {
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-center">
           <p className="text-lg font-medium text-muted-foreground">
-            Organizacao nao encontrada.
+            Organização não encontrada.
           </p>
           <p className="text-sm text-muted-foreground">
             Entre em contato com o suporte.

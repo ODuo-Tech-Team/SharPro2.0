@@ -100,12 +100,12 @@ export function TrainingContent({
     if (!file) return;
 
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      alert("Apenas arquivos PDF sao aceitos.");
+      alert("Apenas arquivos PDF são aceitos.");
       return;
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      alert("Arquivo muito grande. Maximo 20MB.");
+      alert("Arquivo muito grande. Máximo 20MB.");
       return;
     }
 
@@ -185,7 +185,7 @@ export function TrainingContent({
           }),
         }
       );
-      if (!res.ok) throw new Error("Erro na simulacao");
+      if (!res.ok) throw new Error("Erro na simulação");
       const data = await res.json();
       setSimulationResult({
         answer: data.answer,
@@ -194,7 +194,7 @@ export function TrainingContent({
     } catch (err) {
       console.error("Simulate error:", err);
       setSimulationResult({
-        answer: "Erro ao simular. Verifique a conexao com o servidor.",
+        answer: "Erro ao simular. Verifique a conexão com o servidor.",
         context_used: "",
       });
     } finally {
@@ -216,8 +216,8 @@ export function TrainingContent({
             Base de Conhecimento
           </h1>
           <p className="text-slate-400">
-            Envie PDFs com informacoes sobre seus produtos e servicos. O texto
-            sera extraido e adicionado ao conhecimento da IA.
+            Envie PDFs com informações sobre seus produtos e serviços. O texto
+            será extraído e adicionado ao conhecimento da IA.
           </p>
         </div>
         <div>
@@ -268,7 +268,7 @@ export function TrainingContent({
           <div className="flex h-[120px] flex-col items-center justify-center gap-2">
             <Brain className="h-8 w-8 text-slate-600" />
             <p className="text-sm text-slate-500">
-              Nenhum arquivo enviado. Envie um PDF para comecar.
+              Nenhum arquivo enviado. Envie um PDF para começar.
             </p>
           </div>
         ) : (
@@ -350,7 +350,7 @@ export function TrainingContent({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !simulating) handleSimulate();
             }}
-            placeholder="Faca uma pergunta para testar..."
+            placeholder="Faça uma pergunta para testar..."
             className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
           />
           <button

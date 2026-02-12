@@ -11,6 +11,11 @@ interface Lead {
   interest_tags: string[];
   origin: string;
   created_at: string;
+  pipeline_status: string;
+  ai_summary: string | null;
+  estimated_value: number;
+  last_contact_at: string;
+  conversation_id: number | null;
 }
 
 async function getLeadsData(): Promise<{ orgId: string; leads: Lead[] } | null> {
@@ -32,7 +37,7 @@ async function getLeadsData(): Promise<{ orgId: string; leads: Lead[] } | null> 
 
   const { data: leads } = await supabase
     .from("leads")
-    .select("id, name, phone, status, conversion_value, lead_score, interest_tags, origin, created_at")
+    .select("id, name, phone, status, conversion_value, lead_score, interest_tags, origin, created_at, pipeline_status, ai_summary, estimated_value, last_contact_at, conversation_id")
     .eq("organization_id", profile.organization_id)
     .order("created_at", { ascending: false });
 
@@ -45,7 +50,7 @@ export default async function LeadsPage() {
   if (!data) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
-        <p className="text-muted-foreground">Nao foi possivel carregar os leads.</p>
+        <p className="text-muted-foreground">Não foi possível carregar os leads.</p>
       </div>
     );
   }

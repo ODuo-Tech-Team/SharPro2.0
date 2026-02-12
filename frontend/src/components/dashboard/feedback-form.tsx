@@ -33,7 +33,7 @@ interface FeedbackFormProps {
 
 const feedbackTypes = [
   { value: "bug", label: "Bug / Erro" },
-  { value: "feature", label: "Sugestao de Feature" },
+  { value: "feature", label: "Sugestão de Feature" },
   { value: "question", label: "Pergunta" },
   { value: "other", label: "Outro" },
 ];
@@ -51,7 +51,7 @@ export function FeedbackForm({ orgId, userId }: FeedbackFormProps) {
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      toast({ title: "Preencha o titulo", variant: "destructive" });
+      toast({ title: "Preencha o título", variant: "destructive" });
       return;
     }
 
@@ -70,7 +70,7 @@ export function FeedbackForm({ orgId, userId }: FeedbackFormProps) {
 
       toast({
         title: "Feedback enviado!",
-        description: "Obrigado pela sua contribuicao.",
+        description: "Obrigado pela sua contribuição.",
         variant: "success",
       });
 
@@ -99,7 +99,7 @@ export function FeedbackForm({ orgId, userId }: FeedbackFormProps) {
         <DialogHeader>
           <DialogTitle>Enviar Feedback</DialogTitle>
           <DialogDescription>
-            Compartilhe sugestoes, reporte bugs ou faca perguntas.
+            Compartilhe sugestões, reporte bugs ou faça perguntas.
           </DialogDescription>
         </DialogHeader>
 
@@ -121,7 +121,7 @@ export function FeedbackForm({ orgId, userId }: FeedbackFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="feedback-title">Titulo</Label>
+            <Label htmlFor="feedback-title">Título</Label>
             <Input
               id="feedback-title"
               placeholder="Resumo do seu feedback"
@@ -131,7 +131,7 @@ export function FeedbackForm({ orgId, userId }: FeedbackFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="feedback-description">Descricao</Label>
+            <Label htmlFor="feedback-description">Descrição</Label>
             <Textarea
               id="feedback-description"
               placeholder="Descreva com mais detalhes..."

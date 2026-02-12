@@ -40,19 +40,19 @@ const TONE_OPTIONS = [
   },
   {
     value: "amigavel",
-    label: "Amigavel",
+    label: "Amigável",
     description: "Cordial e acolhedor",
     emoji: "\u{1F60A}",
   },
   {
     value: "tecnico",
-    label: "Tecnico",
+    label: "Técnico",
     description: "Preciso e detalhado",
     emoji: "\u{1F527}",
   },
   {
     value: "descontraido",
-    label: "Descontraido",
+    label: "Descontraído",
     description: "Leve e informal",
     emoji: "\u{1F60E}",
   },
@@ -66,20 +66,20 @@ const LENGTH_OPTIONS = [
   },
   {
     value: "media",
-    label: "Media",
+    label: "Média",
     description: "Respostas equilibradas",
   },
   {
     value: "detalhada",
     label: "Detalhada",
-    description: "Explicacoes completas",
+    description: "Explicações completas",
   },
 ];
 
 const LANGUAGE_OPTIONS = [
-  { value: "pt-BR", label: "Portugues (BR)" },
+  { value: "pt-BR", label: "Português (BR)" },
   { value: "en", label: "English" },
-  { value: "es", label: "Espanol" },
+  { value: "es", label: "Español" },
 ];
 
 export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) {
@@ -125,7 +125,7 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Save error:", err);
-      alert("Erro ao salvar configuracoes.");
+      alert("Erro ao salvar configurações.");
     } finally {
       setSaving(false);
     }
@@ -165,7 +165,7 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
         <div className="mb-4 flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-purple-400" />
           <h2 className="text-base font-semibold text-white">
-            Tom de Comunicacao
+            Tom de Comunicação
           </h2>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -276,16 +276,16 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
         <div className="mb-4 flex items-center gap-2">
           <Clock className="h-5 w-5 text-sky-400" />
           <h2 className="text-base font-semibold text-white">
-            Horario de Atendimento
+            Horário de Atendimento
           </h2>
         </div>
         <p className="mb-4 text-sm text-slate-400">
-          Fora do horario, a IA envia uma mensagem automatica.
+          Fora do horário, a IA envia uma mensagem automática.
         </p>
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="mb-1 block text-xs text-slate-400">
-              Inicio
+              Início
             </label>
             <input
               type="time"
@@ -305,14 +305,14 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
           </div>
           <div>
             <label className="mb-1 block text-xs text-slate-400">
-              Fuso Horario
+              Fuso Horário
             </label>
             <select
               value={config.business_hours?.timezone || "America/Sao_Paulo"}
               onChange={(e) => updateBusinessHours("timezone", e.target.value)}
               className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
             >
-              <option value="America/Sao_Paulo">Brasilia (GMT-3)</option>
+              <option value="America/Sao_Paulo">Brasília (GMT-3)</option>
               <option value="America/Manaus">Manaus (GMT-4)</option>
               <option value="America/Noronha">Noronha (GMT-2)</option>
               <option value="America/Rio_Branco">Rio Branco (GMT-5)</option>
@@ -326,7 +326,7 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
         <div className="mb-4 flex items-center gap-2">
           <MessageCircle className="h-5 w-5 text-orange-400" />
           <h2 className="text-base font-semibold text-white">
-            Mensagem Fora do Horario
+            Mensagem Fora do Horário
           </h2>
         </div>
         <textarea
@@ -334,7 +334,7 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
           onChange={(e) =>
             updateConfig("outside_hours_message", e.target.value)
           }
-          placeholder="Obrigado pelo contato! Nosso horario de atendimento e de 08:00 as 18:00. Retornaremos em breve!"
+          placeholder="Obrigado pelo contato! Nosso horário de atendimento é de 08:00 às 18:00. Retornaremos em breve!"
           rows={3}
           className="w-full resize-y rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
         />

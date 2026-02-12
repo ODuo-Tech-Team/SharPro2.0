@@ -143,7 +143,7 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
       <div className="space-y-6">
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
           <p className="text-slate-500 text-sm">
-            Nenhuma campanha criada ainda. Crie sua primeira campanha para comecar.
+            Nenhuma campanha criada ainda. Crie sua primeira campanha para começar.
           </p>
         </div>
       </div>
@@ -194,7 +194,7 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
                     {conversionPercent}%
                   </div>
                   <div className="text-xs text-slate-500 uppercase tracking-wider">
-                    Conversao
+                    Conversão
                   </div>
                 </div>
               </div>
@@ -234,7 +234,7 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
                 <button
                   className="p-2 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
                   onClick={() => setEditingCampaign(campaign)}
-                  title="Configuracoes"
+                  title="Configurações"
                 >
                   <Settings className="h-4 w-4" />
                 </button>
@@ -257,7 +257,7 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
                       className="px-2 py-1 text-xs text-slate-400 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors"
                       onClick={() => setConfirmDeleteId(null)}
                     >
-                      Nao
+                      Não
                     </button>
                   </div>
                 ) : (

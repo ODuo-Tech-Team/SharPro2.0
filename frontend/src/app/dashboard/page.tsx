@@ -196,10 +196,10 @@ export default async function DashboardPage() {
       <div className="flex h-[50vh] items-center justify-center">
         <div className="text-center">
           <p className="text-lg font-medium text-muted-foreground">
-            Nao foi possivel carregar os dados.
+            Não foi possível carregar os dados.
           </p>
           <p className="text-sm text-muted-foreground">
-            Verifique sua conexao e tente novamente.
+            Verifique sua conexão e tente novamente.
           </p>
         </div>
       </div>

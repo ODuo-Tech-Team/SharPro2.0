@@ -105,7 +105,7 @@ async def execute_transfer(
 
     if not chatwoot_url or not chatwoot_token:
         logger.error("No Chatwoot credentials for account_id=%d, company='%s'.", account_id, company)
-        return "Erro: credenciais Chatwoot nao encontradas."
+        return "Erro: credenciais Chatwoot não encontradas."
 
     # Use override key for toggle_status (same as n8n Abre Atendimento uses Edit Fields Apikey)
     toggle_token = apikey_chatwoot_override or chatwoot_token
@@ -211,7 +211,7 @@ async def execute_transfer(
         "Transfer completed: conversation=%d, team=%s, kommo=%s.",
         conversation_id, team_id, kommo_enabled,
     )
-    return "Transferencia realizada com sucesso!"
+    return "Transferência realizada com sucesso!"
 
 
 async def _execute_kommo_flow(

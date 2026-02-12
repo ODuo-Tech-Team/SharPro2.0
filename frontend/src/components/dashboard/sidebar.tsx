@@ -34,7 +34,7 @@ const navigation = [
     icon: Smartphone,
   },
   {
-    name: "Treinar Robo",
+    name: "Treinar Robô",
     href: "/dashboard/training",
     icon: Brain,
   },
@@ -59,7 +59,7 @@ const navigation = [
     icon: Megaphone,
   },
   {
-    name: "Configuracoes",
+    name: "Configurações",
     href: "/dashboard/settings",
     icon: Settings,
   },

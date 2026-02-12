@@ -164,7 +164,7 @@ export function EditClientModal({
         });
         if (!res.ok) throw new Error("Erro ao salvar");
       }
-      showMsg("Configuracoes de IA salvas!");
+      showMsg("Configurações de IA salvas!");
     } catch (err: any) {
       showMsg(err.message || "Erro ao salvar");
     } finally {
@@ -189,7 +189,7 @@ export function EditClientModal({
         });
         if (!res.ok) throw new Error("Erro ao salvar");
       }
-      showMsg("Integracoes salvas!");
+      showMsg("Integrações salvas!");
     } catch (err: any) {
       showMsg(err.message || "Erro ao salvar");
     } finally {
@@ -218,7 +218,7 @@ export function EditClientModal({
         body: JSON.stringify({ ai_handoff_config: config }),
       });
       if (!res.ok) throw new Error("Erro ao salvar");
-      showMsg("Configuracao de transbordo salva!");
+      showMsg("Configuração de transbordo salva!");
     } catch (err: any) {
       showMsg(err.message || "Erro ao salvar");
     } finally {
@@ -243,13 +243,13 @@ export function EditClientModal({
               Assinatura & Acesso
             </TabsTrigger>
             <TabsTrigger value="ai" className="flex-1">
-              Inteligencia (IA)
+              Inteligência (IA)
             </TabsTrigger>
             <TabsTrigger value="integration" className="flex-1">
-              Integracao Tecnica
+              Integração Técnica
             </TabsTrigger>
             <TabsTrigger value="instances" className="flex-1">
-              Instancias WhatsApp
+              Instâncias WhatsApp
             </TabsTrigger>
             <TabsTrigger value="handoff" className="flex-1">
               Transbordo
@@ -276,9 +276,9 @@ export function EditClientModal({
 
             <div className="flex items-center justify-between">
               <div>
-                <Label>Status da Organizacao</Label>
+                <Label>Status da Organização</Label>
                 <p className="text-xs text-muted-foreground">
-                  {isActive ? "Organizacao ativa" : "Organizacao bloqueada"}
+                  {isActive ? "Organização ativa" : "Organização bloqueada"}
                 </p>
               </div>
               <Switch checked={isActive} onCheckedChange={setIsActive} />
@@ -420,7 +420,7 @@ export function EditClientModal({
                 disabled={!handoffEnabled}
               />
               <p className="text-xs text-muted-foreground">
-                Separadas por virgula. Se o cliente enviar qualquer uma dessas palavras, sera transferido imediatamente.
+                Separadas por vírgula. Se o cliente enviar qualquer uma dessas palavras, será transferido imediatamente.
               </p>
             </div>
 
@@ -430,11 +430,11 @@ export function EditClientModal({
                 rows={2}
                 value={handoffFarewell}
                 onChange={(e) => setHandoffFarewell(e.target.value)}
-                placeholder="Estou transferindo voce para um de nossos atendentes. Aguarde um momento!"
+                placeholder="Estou transferindo você para um de nossos atendentes. Aguarde um momento!"
                 disabled={!handoffEnabled}
               />
               <p className="text-xs text-muted-foreground">
-                Enviada ao cliente antes da transferencia. Tambem usada quando a IA decide transferir.
+                Enviada ao cliente antes da transferência. Também usada quando a IA decide transferir.
               </p>
             </div>
 
@@ -447,7 +447,7 @@ export function EditClientModal({
                 disabled={!handoffEnabled}
               />
               <p className="text-xs text-muted-foreground">
-                Se preenchido, a conversa sera atribuida a esse time no Chatwoot.
+                Se preenchido, a conversa será atribuída a esse time no Chatwoot.
               </p>
             </div>
 

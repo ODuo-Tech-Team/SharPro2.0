@@ -47,7 +47,7 @@ export default async function CampaignsPage() {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <p className="text-lg font-medium text-muted-foreground">
-          Nao foi possivel carregar os dados.
+          Não foi possível carregar os dados.
         </p>
       </div>
     );

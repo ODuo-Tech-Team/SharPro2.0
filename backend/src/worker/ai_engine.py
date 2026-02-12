@@ -35,20 +35,32 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 INTERNAL_NOTE_INSTRUCTION = (
-    "\n\n[INSTRUCAO DO SISTEMA - NOTAS INTERNAS]\n"
-    "Quando voce quiser fazer uma observacao interna para o agente humano "
-    "(analise do cliente, feedback sobre a conversa, sugestoes de abordagem, "
+    "\n\n[INSTRUÇÃO DO SISTEMA - NOTAS INTERNAS]\n"
+    "Quando você quiser fazer uma observação interna para o agente humano "
+    "(análise do cliente, feedback sobre a conversa, sugestões de abordagem, "
     "alertas sobre comportamento do cliente, etc.), escreva essa parte "
     "dentro das tags [NOTA_INTERNA] e [/NOTA_INTERNA].\n"
     "Exemplo:\n"
-    "[NOTA_INTERNA]O cliente esta demonstrando interesse no produto X. "
-    "Sugerir promocao ativa.[/NOTA_INTERNA]\n"
-    "O texto FORA dessas tags sera enviado ao cliente normalmente. "
-    "O texto DENTRO sera visivel apenas para os agentes internos.\n"
-    "Use notas internas para: analises, feedbacks, alertas, sugestoes de venda, "
-    "observacoes sobre o comportamento do cliente.\n"
-    "NUNCA envie analises internas diretamente ao cliente.\n"
-    "[/INSTRUCAO DO SISTEMA]"
+    "[NOTA_INTERNA]O cliente está demonstrando interesse no produto X. "
+    "Sugerir promoção ativa.[/NOTA_INTERNA]\n"
+    "O texto FORA dessas tags será enviado ao cliente normalmente. "
+    "O texto DENTRO será visível apenas para os agentes internos.\n"
+    "Use notas internas para: análises, feedbacks, alertas, sugestões de venda, "
+    "observações sobre o comportamento do cliente.\n"
+    "NUNCA envie análises internas diretamente ao cliente.\n"
+    "[/INSTRUÇÃO DO SISTEMA]\n\n"
+    "[INSTRUÇÃO DE QUALIFICAÇÃO - PIPELINE DE VENDAS]\n"
+    "Ao final de CADA resposta, inclua uma análise interna de qualificação "
+    "dentro das tags [QUALIFICACAO] e [/QUALIFICACAO] no formato JSON:\n"
+    '[QUALIFICACAO]{"interesse":"produto ou serviço que o cliente quer",'
+    '"valor_estimado":0,"urgencia":"baixa"}'
+    "[/QUALIFICACAO]\n"
+    "interesse: o que o cliente quer em 1 frase curta (ex: 'portão pivotante 3m')\n"
+    "valor_estimado: valor estimado em reais (0 se desconhecido)\n"
+    "urgência: baixa, média ou alta\n"
+    "SEMPRE inclua esta tag, mesmo que com valores zerados.\n"
+    "O texto dentro de [QUALIFICACAO] NÃO será enviado ao cliente.\n"
+    "[/INSTRUÇÃO DE QUALIFICAÇÃO]"
 )
 
 # ---------------------------------------------------------------------------
@@ -207,6 +219,20 @@ async def _execute_tool_call(
         await redis_svc.set_human_takeover(ctx.conversation_id)
         ctx.transferred = True
 
+        # --- Pipeline: save AI summary and mark as transferred ---
+        if ctx.contact_id:
+            try:
+                from datetime import datetime, timezone
+                lead = await supabase_svc.find_lead_by_contact(ctx.organization_id, ctx.contact_id)
+                if lead:
+                    await supabase_svc.update_lead_pipeline(lead["id"], {
+                        "pipeline_status": "transferido",
+                        "ai_summary": summary,
+                        "last_contact_at": datetime.now(timezone.utc).isoformat(),
+                    })
+            except Exception:
+                logger.warning("Pipeline update on transfer failed (non-critical).")
+
         try:
             result = await execute_transfer(
                 nome=contact_name,
@@ -229,7 +255,7 @@ async def _execute_tool_call(
                 )
             except Exception:
                 pass
-            return f"Transferencia parcial realizada. Erro: {exc}"
+            return f"Transferência parcial realizada. Erro: {exc}"
 
     # ---------------------------------------------------------------
     # Tool 2: register_lead
@@ -251,7 +277,7 @@ async def _execute_tool_call(
             )
             return (
                 f"Limite de leads do plano atingido ({limit_check['current']}/{limit_check['limit']}). "
-                f"Faca upgrade do plano para registrar mais leads."
+                f"Faça upgrade do plano para registrar mais leads."
             )
 
         lead = await supabase_svc.insert_lead(
@@ -270,6 +296,18 @@ async def _execute_tool_call(
                 logger.info("Lead %s scored: %d, tags=%s.", lead_id, score, tags)
             except Exception:
                 logger.warning("Lead scoring failed for %s (non-critical).", lead_id)
+
+        # --- Pipeline: set initial pipeline status and link conversation ---
+        if lead_id:
+            try:
+                from datetime import datetime, timezone
+                await supabase_svc.update_lead_pipeline(lead_id, {
+                    "pipeline_status": "ia_atendendo",
+                    "conversation_id": ctx.conversation_id,
+                    "last_contact_at": datetime.now(timezone.utc).isoformat(),
+                })
+            except Exception:
+                logger.warning("Pipeline update failed for lead %s (non-critical).", lead_id)
 
         return f"Lead '{lead_name}' registrado com sucesso."
 
@@ -353,18 +391,18 @@ def _build_dynamic_prompt(system_prompt: str, ai_config: dict[str, Any]) -> str:
 
     tone = ai_config.get("tone")
     if tone:
-        modifiers.append(f"Seu tom de comunicacao deve ser {tone}.")
+        modifiers.append(f"Seu tom de comunicação deve ser {tone}.")
 
     length = ai_config.get("response_length")
     if length == "curta":
         modifiers.append("Mantenha respostas curtas e diretas (1-2 frases).")
     elif length == "detalhada":
-        modifiers.append("Forneca respostas detalhadas e completas.")
+        modifiers.append("Forneça respostas detalhadas e completas.")
 
     if ai_config.get("use_emojis"):
         modifiers.append("Use emojis de forma natural nas respostas.")
     elif "use_emojis" in ai_config:
-        modifiers.append("NAO use emojis nas respostas.")
+        modifiers.append("NÃO use emojis nas respostas.")
 
     language = ai_config.get("language")
     if language:
@@ -373,9 +411,9 @@ def _build_dynamic_prompt(system_prompt: str, ai_config: dict[str, Any]) -> str:
     if modifiers:
         return (
             system_prompt
-            + "\n\n[CONFIGURACAO DE PERSONALIDADE]\n"
+            + "\n\n[CONFIGURAÇÃO DE PERSONALIDADE]\n"
             + "\n".join(modifiers)
-            + "\n[/CONFIGURACAO]"
+            + "\n[/CONFIGURAÇÃO]"
         )
     return system_prompt
 
@@ -410,7 +448,7 @@ async def run_completion(ctx: ConversationContext) -> str:
             "\n\n[CONHECIMENTO DA BASE]\n"
             + knowledge_context
             + "\n[/CONHECIMENTO DA BASE]\n"
-            + "Use estas informacoes para responder quando relevante.\n"
+            + "Use estas informações para responder quando relevante.\n"
         )
 
     # --- Personality: apply dynamic AI config ---
@@ -521,12 +559,12 @@ async def generate_handoff_summary(messages: list[dict[str, Any]]) -> str:
                 {
                     "role": "system",
                     "content": (
-                        "Voce e um assistente que resume conversas de atendimento ao cliente. "
-                        "Gere um resumo conciso em portugues (max 3-4 frases) contendo: "
+                        "Você é um assistente que resume conversas de atendimento ao cliente. "
+                        "Gere um resumo conciso em português (máx 3-4 frases) contendo: "
                         "1) O que o cliente quer/precisa "
-                        "2) O que ja foi discutido/resolvido "
+                        "2) O que já foi discutido/resolvido "
                         "3) Ponto atual da conversa "
-                        "4) Qualquer informacao importante (nome, telefone, produto mencionado). "
+                        "4) Qualquer informação importante (nome, telefone, produto mencionado). "
                         "Seja direto e objetivo."
                     ),
                 },
@@ -538,7 +576,7 @@ async def generate_handoff_summary(messages: list[dict[str, Any]]) -> str:
             temperature=0.3,
             max_tokens=300,
         )
-        return response.choices[0].message.content or "Resumo indisponivel."
+        return response.choices[0].message.content or "Resumo indisponível."
     except Exception as exc:
         logger.warning("Failed to generate handoff summary: %s", exc)
         return f"Erro ao gerar resumo: {exc}"

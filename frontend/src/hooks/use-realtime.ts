@@ -33,6 +33,11 @@ interface Lead {
   interest_tags: string[];
   origin: string;
   created_at: string;
+  pipeline_status: string;
+  ai_summary: string | null;
+  estimated_value: number;
+  last_contact_at: string;
+  conversation_id: number | null;
 }
 
 // ---------------------------------------------------------------------------

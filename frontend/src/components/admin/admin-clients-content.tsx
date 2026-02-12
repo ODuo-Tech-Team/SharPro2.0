@@ -20,7 +20,7 @@ export function AdminClientsContent() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        setError("Sessao expirada. Faca login novamente.");
+        setError("Sessão expirada. Faça login novamente.");
         setLoading(false);
         return;
       }
@@ -46,7 +46,7 @@ export function AdminClientsContent() {
         setOrganizations(orgsData.organizations || []);
         setPlans(plansData.plans || []);
       } catch {
-        setError("Erro ao carregar dados. Verifique a conexao com o servidor.");
+        setError("Erro ao carregar dados. Verifique a conexão com o servidor.");
       } finally {
         setLoading(false);
       }

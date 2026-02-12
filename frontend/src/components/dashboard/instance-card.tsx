@@ -28,7 +28,7 @@ export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDisconnect
   const phoneNumber: string = instance.phone_number || instance.instance_name;
 
   const handleDisconnect = async (): Promise<void> => {
-    if (!confirm("Desconectar o WhatsApp desta instancia? Voce podera conectar outro numero depois.")) return;
+    if (!confirm("Desconectar o WhatsApp desta instância? Você poderá conectar outro número depois.")) return;
     setDisconnecting(true);
     try {
       await onDisconnect(instance.id);
@@ -119,7 +119,7 @@ export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDisconnect
         <div className="space-y-4">
           {/* QR placeholder */}
           <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-center">
-            <span className="text-slate-600 text-sm">QR Code Indisponivel</span>
+            <span className="text-slate-600 text-sm">QR Code Indisponível</span>
           </div>
 
           {/* Generate QR button */}

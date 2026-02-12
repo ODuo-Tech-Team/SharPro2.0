@@ -30,7 +30,7 @@ export function ImpersonationBanner() {
     <div className="fixed top-0 left-0 right-0 z-[60] flex items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-black">
       <Shield className="h-4 w-4" />
       <span>
-        Modo Administrador: Voce esta acessando como cliente.
+        Modo Administrador: Você está acessando como cliente.
       </span>
       <Button
         size="sm"

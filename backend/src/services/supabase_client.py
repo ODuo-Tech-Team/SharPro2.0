@@ -1554,3 +1554,114 @@ async def get_leads_for_export(
     except Exception:
         logger.exception("Error getting leads for export, org=%s.", org_id)
         return []
+
+
+# ---------------------------------------------------------------------------
+# Follow-up / Pipeline helpers
+# ---------------------------------------------------------------------------
+
+async def update_lead_pipeline(lead_id: str, updates: dict[str, Any]) -> None:
+    """Update pipeline fields on a lead (pipeline_status, ai_summary, etc.)."""
+    try:
+        client = _get_client()
+        client.table("leads").update(updates).eq("id", lead_id).execute()
+        logger.info("Lead %s pipeline updated: %s.", lead_id, list(updates.keys()))
+    except Exception:
+        logger.exception("Error updating lead pipeline for %s.", lead_id)
+
+
+async def update_lead_by_conversation(
+    conversation_id: int, updates: dict[str, Any]
+) -> None:
+    """Find a lead by its Chatwoot conversation_id and update pipeline fields."""
+    try:
+        client = _get_client()
+        client.table("leads").update(updates).eq("conversation_id", conversation_id).execute()
+        logger.info("Lead (conv=%d) pipeline updated: %s.", conversation_id, list(updates.keys()))
+    except Exception:
+        logger.exception("Error updating lead by conversation %d.", conversation_id)
+
+
+async def find_lead_by_contact(
+    org_id: str, contact_id: int
+) -> Optional[dict[str, Any]]:
+    """Find the most recent lead for a Chatwoot contact within an org."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("leads")
+            .select("*")
+            .eq("organization_id", org_id)
+            .eq("contact_id", contact_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
+    except Exception:
+        logger.exception("Error finding lead by contact %d (org=%s).", contact_id, org_id)
+        return None
+
+
+async def get_followup_leads(
+    org_id: str,
+    pipeline_status: str = "",
+    search: str = "",
+    page: int = 1,
+    per_page: int = 50,
+) -> dict[str, Any]:
+    """Get leads with pipeline data for the follow-up dashboard."""
+    try:
+        client = _get_client()
+        query = (
+            client.table("leads")
+            .select(
+                "id, name, phone, status, lead_score, interest_tags, "
+                "pipeline_status, ai_summary, estimated_value, "
+                "last_contact_at, conversation_id, created_at",
+                count="exact",
+            )
+            .eq("organization_id", org_id)
+        )
+        if pipeline_status:
+            query = query.eq("pipeline_status", pipeline_status)
+        if search:
+            query = query.or_(f"name.ilike.%{search}%,phone.ilike.%{search}%")
+        query = query.order("last_contact_at", desc=True)
+        offset = (page - 1) * per_page
+        query = query.range(offset, offset + per_page - 1)
+        response = query.execute()
+        return {
+            "data": response.data or [],
+            "total": response.count or 0,
+            "page": page,
+            "per_page": per_page,
+        }
+    except Exception:
+        logger.exception("Error getting followup leads for org=%s.", org_id)
+        return {"data": [], "total": 0, "page": page, "per_page": per_page}
+
+
+async def get_followup_stats(org_id: str) -> dict[str, int]:
+    """Count leads by pipeline_status for the follow-up dashboard."""
+    try:
+        client = _get_client()
+        statuses = [
+            "ia_atendendo", "qualificado", "transferido",
+            "orcamento_enviado", "venda_confirmada", "perdido",
+        ]
+        result: dict[str, int] = {}
+        for s in statuses:
+            response = (
+                client.table("leads")
+                .select("id", count="exact")
+                .eq("organization_id", org_id)
+                .eq("pipeline_status", s)
+                .execute()
+            )
+            result[s] = response.count or 0
+        result["total"] = sum(result.values())
+        return result
+    except Exception:
+        logger.exception("Error getting followup stats for org=%s.", org_id)
+        return {}

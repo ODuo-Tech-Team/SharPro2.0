@@ -115,15 +115,15 @@ export function SettingsForm({ settings, usage, allPlans }: SettingsFormProps) {
       toast({
         title: "Erro ao salvar",
         description:
-          error.message || "Nao foi possivel atualizar as configuracoes.",
+          error.message || "Não foi possível atualizar as configurações.",
         variant: "destructive",
       });
       return;
     }
 
     toast({
-      title: "Configuracoes salvas",
-      description: "As alteracoes foram aplicadas com sucesso.",
+      title: "Configurações salvas",
+      description: "As alterações foram aplicadas com sucesso.",
       variant: "success",
     });
   };
@@ -146,7 +146,7 @@ export function SettingsForm({ settings, usage, allPlans }: SettingsFormProps) {
               </div>
               <CardDescription>
                 {plan
-                  ? `R$ ${plan.price_monthly.toFixed(2)}/mes`
+                  ? `R$ ${plan.price_monthly.toFixed(2)}/mês`
                   : "Nenhum plano configurado"}
               </CardDescription>
             </div>
@@ -157,7 +157,7 @@ export function SettingsForm({ settings, usage, allPlans }: SettingsFormProps) {
             <>
               <div className="space-y-3">
                 <UsageMeter
-                  label="Usuarios"
+                  label="Usuários"
                   icon={Users}
                   current={usage.currentUsers}
                   max={plan.max_users}
@@ -200,15 +200,15 @@ export function SettingsForm({ settings, usage, allPlans }: SettingsFormProps) {
             <Label htmlFor="system_prompt">System Prompt</Label>
             <Textarea
               id="system_prompt"
-              placeholder="Voce e um assistente de vendas profissional e amigavel..."
+              placeholder="Você é um assistente de vendas profissional e amigável..."
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={8}
               className="resize-y font-mono text-sm"
             />
             <p className="text-xs text-muted-foreground">
-              Este prompt define a personalidade e as instrucoes base da IA para
-              todas as conversas da sua organizacao.
+              Este prompt define a personalidade e as instruções base da IA para
+              todas as conversas da sua organização.
             </p>
           </div>
         </CardContent>
@@ -238,8 +238,8 @@ export function SettingsForm({ settings, usage, allPlans }: SettingsFormProps) {
               onChange={(e) => setOpenaiKey(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Sua chave e armazenada de forma segura e usada apenas para
-              processar mensagens da sua organizacao.
+              Sua chave é armazenada de forma segura e usada apenas para
+              processar mensagens da sua organização.
             </p>
           </div>
         </CardContent>
@@ -260,7 +260,7 @@ export function SettingsForm({ settings, usage, allPlans }: SettingsFormProps) {
           ) : (
             <>
               <Save className="mr-2 h-4 w-4" />
-              Salvar Configuracoes
+              Salvar Configurações
             </>
           )}
         </Button>

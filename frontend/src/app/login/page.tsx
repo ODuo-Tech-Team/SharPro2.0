@@ -240,8 +240,8 @@ export default function LoginPage() {
               className="text-sm text-shark-blue hover:text-shark-blue/80 transition-colors"
             >
               {isSignUp
-                ? "Ja tem conta? Faca login"
-                : "Nao tem conta? Cadastre-se"}
+                ? "Já tem conta? Faça login"
+                : "Não tem conta? Cadastre-se"}
             </button>
           </div>
 

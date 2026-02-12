@@ -110,11 +110,11 @@ async def simulate_knowledge(payload: KnowledgeSimulate) -> dict[str, Any]:
             "context_used": "",
         }
 
-    system_prompt = org.get("system_prompt") or "Voce e um assistente util."
+    system_prompt = org.get("system_prompt") or "Você é um assistente útil."
     full_prompt = (
         f"{system_prompt}\n\n"
         f"[CONHECIMENTO DA BASE]\n{knowledge_text}\n[/CONHECIMENTO DA BASE]\n"
-        f"Use estas informacoes para responder quando relevante."
+        f"Use estas informações para responder quando relevante."
     )
 
     settings = get_settings()

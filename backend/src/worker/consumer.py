@@ -71,6 +71,32 @@ def _split_internal_notes(text: str) -> tuple[str, list[str]]:
     return client_text, notes
 
 
+# Regex to extract [QUALIFICACAO]...[/QUALIFICACAO] blocks (pipeline piggyback)
+_QUALIFICACAO_RE = re.compile(
+    r"\[QUALIFICACAO\](.*?)\[/QUALIFICACAO\]",
+    re.DOTALL,
+)
+
+
+def _extract_qualification(text: str) -> tuple[str, Optional[dict[str, Any]]]:
+    """
+    Extract [QUALIFICACAO] JSON from AI response.
+
+    Returns (cleaned_text, qualification_dict_or_None).
+    """
+    match = _QUALIFICACAO_RE.search(text)
+    cleaned = _QUALIFICACAO_RE.sub("", text).strip()
+    if not match:
+        return cleaned, None
+    try:
+        raw = match.group(1).strip()
+        data = json.loads(raw)
+        return cleaned, data
+    except (json.JSONDecodeError, ValueError):
+        logger.warning("Failed to parse QUALIFICACAO JSON: %s", match.group(1)[:100])
+        return cleaned, None
+
+
 # ---------------------------------------------------------------------------
 # Audio transcription
 # ---------------------------------------------------------------------------
@@ -339,8 +365,8 @@ async def _process_batch(
                 if current_time < start_time or current_time >= end_time:
                     outside_msg = ai_config.get(
                         "outside_hours_message",
-                        "Obrigado pelo contato! Nosso horario de atendimento e de "
-                        f"{start_time} as {end_time}. Retornaremos em breve!"
+                        "Obrigado pelo contato! Nosso horário de atendimento é de "
+                        f"{start_time} às {end_time}. Retornaremos em breve!"
                     )
                     logger.info(
                         "Outside business hours (%s not in %s-%s) for conversation %d. Sending auto-reply.",
@@ -395,6 +421,26 @@ async def _process_batch(
             "AI response ready: %d chars, transferred=%s, conversation=%d.",
             len(ai_response), ctx.transferred, conversation_id,
         )
+
+        # 7b. Extract pipeline qualification data (piggyback, zero extra cost)
+        ai_response, qualification = _extract_qualification(ai_response)
+        if qualification and ctx.contact_id:
+            try:
+                from datetime import datetime, timezone
+                lead = await supabase_svc.find_lead_by_contact(org["id"], ctx.contact_id)
+                if lead:
+                    pipeline_updates: dict[str, Any] = {
+                        "last_contact_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    val = qualification.get("valor_estimado")
+                    if val and float(val) > 0:
+                        pipeline_updates["estimated_value"] = float(val)
+                    # Auto-qualify if score > 60 and still in ia_atendendo
+                    if lead.get("pipeline_status") == "ia_atendendo" and (lead.get("lead_score") or 0) > 60:
+                        pipeline_updates["pipeline_status"] = "qualificado"
+                    await supabase_svc.update_lead_pipeline(lead["id"], pipeline_updates)
+            except Exception:
+                logger.warning("Pipeline qualification update failed (non-critical).")
 
         # 8. Send response to Chatwoot (unless transferred)
         if not ctx.transferred and ai_response.strip():

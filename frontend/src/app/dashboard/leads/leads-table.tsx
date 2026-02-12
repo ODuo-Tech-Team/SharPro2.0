@@ -27,6 +27,11 @@ interface Lead {
   interest_tags: string[];
   origin: string;
   created_at: string;
+  pipeline_status: string;
+  ai_summary: string | null;
+  estimated_value: number;
+  last_contact_at: string;
+  conversation_id: number | null;
 }
 
 interface LeadsTableProps {
@@ -140,7 +145,7 @@ export function LeadsTable({ orgId, initialLeads, accountId }: LeadsTableProps) 
         : null;
 
       if (!url) {
-        alert("Account ID nao disponivel para exportacao.");
+        alert("Account ID não disponível para exportação.");
         return;
       }
 

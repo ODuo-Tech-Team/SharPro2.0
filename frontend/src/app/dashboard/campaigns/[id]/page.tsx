@@ -70,7 +70,7 @@ export default async function CampaignDetailPage({ params }: CampaignDetailPageP
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <p className="text-lg font-medium text-muted-foreground">
-          Campanha nao encontrada.
+          Campanha não encontrada.
         </p>
       </div>
     );

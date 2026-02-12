@@ -64,7 +64,7 @@ export function CreateCampaign({ accountId }: CreateCampaignProps) {
       setCampaignId(data.campaign?.id);
       setStep("upload");
 
-      toast({ title: "Campanha criada!", description: "Agora faca upload da lista de leads." });
+      toast({ title: "Campanha criada!", description: "Agora faça upload da lista de leads." });
     } catch (err) {
       console.error("Create campaign error:", err);
       toast({ title: "Erro ao criar campanha", variant: "destructive" });
@@ -94,7 +94,7 @@ export function CreateCampaign({ accountId }: CreateCampaignProps) {
 
       toast({
         title: "Leads importados!",
-        description: `${data.leads_imported} leads adicionados a campanha.`,
+        description: `${data.leads_imported} leads adicionados à campanha.`,
       });
     } catch (err) {
       console.error("Upload error:", err);
@@ -131,7 +131,7 @@ export function CreateCampaign({ accountId }: CreateCampaignProps) {
             <DialogHeader>
               <DialogTitle>Criar Campanha</DialogTitle>
               <DialogDescription>
-                Configure sua campanha de prospeccao ativa.
+                Configure sua campanha de prospecção ativa.
               </DialogDescription>
             </DialogHeader>
 
@@ -150,7 +150,7 @@ export function CreateCampaign({ accountId }: CreateCampaignProps) {
                 <Label htmlFor="campaign-template">Mensagem Template</Label>
                 <Textarea
                   id="campaign-template"
-                  placeholder="Ola {{nome}}, tudo bem? Tenho uma oferta especial para voce..."
+                  placeholder="Olá {{nome}}, tudo bem? Tenho uma oferta especial para você..."
                   value={template}
                   onChange={(e) => setTemplate(e.target.value)}
                   rows={4}
@@ -196,7 +196,7 @@ export function CreateCampaign({ accountId }: CreateCampaignProps) {
             <DialogHeader>
               <DialogTitle>Importar Leads</DialogTitle>
               <DialogDescription>
-                Faca upload de um arquivo CSV com colunas: nome, telefone
+                Faça upload de um arquivo CSV com colunas: nome, telefone
               </DialogDescription>
             </DialogHeader>
 

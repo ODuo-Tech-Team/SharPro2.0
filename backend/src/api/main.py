@@ -35,6 +35,7 @@ from src.api.instances import instance_router
 from src.api.admin import admin_router
 from src.api.knowledge import knowledge_router
 from src.api.leads import leads_router
+from src.api.followup import followup_router
 from src.worker.ai_engine import generate_handoff_summary
 
 # ---------------------------------------------------------------------------
@@ -89,6 +90,7 @@ app.include_router(instance_router)
 app.include_router(admin_router)
 app.include_router(knowledge_router)
 app.include_router(leads_router)
+app.include_router(followup_router)
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +256,29 @@ async def chatwoot_webhook(request: Request) -> Response:
     # ------------------------------------------------------------------
     if event == "conversation_updated":
         labels: list[str] = conversation.get("labels", [])
+        labels_lower = {l.lower() for l in labels}
+        conv_id = int(conversation_id) if conversation_id else 0
+
+        # --- Pipeline: detect labels and update pipeline_status ---
+        if conv_id and account_id:
+            pipeline_update: str | None = None
+            if labels_lower & {"venda_realizada", "venda_concluida"}:
+                pipeline_update = "venda_confirmada"
+            elif labels_lower & {"orcamento_enviado", "orcamento"}:
+                pipeline_update = "orcamento_enviado"
+            elif labels_lower & {"perdido", "lost"}:
+                pipeline_update = "perdido"
+
+            if pipeline_update:
+                try:
+                    await supabase_svc.update_lead_by_conversation(conv_id, {
+                        "pipeline_status": pipeline_update,
+                    })
+                    logger.info("Pipeline status → '%s' for conversation %d (label).", pipeline_update, conv_id)
+                except Exception:
+                    logger.warning("Pipeline label update failed for conv %d (non-critical).", conv_id)
+
+        # --- Sale tracking (existing logic) ---
         sale_labels = {"venda_realizada", "venda_concluida", "VENDA_REALIZADA"}
         matched_labels = sale_labels.intersection(set(labels))
         if matched_labels and conversation_id and account_id:
@@ -271,7 +296,7 @@ async def chatwoot_webhook(request: Request) -> Response:
                     confirmed_by="label",
                 )
             return Response(content='{"detail":"sale recorded"}', status_code=200, media_type="application/json")
-        return Response(content='{"detail":"conversation_updated ignored"}', status_code=200, media_type="application/json")
+        return Response(content='{"detail":"conversation_updated processed"}', status_code=200, media_type="application/json")
 
     # ------------------------------------------------------------------
     # Gate: only process message_created events from here
@@ -311,6 +336,13 @@ async def chatwoot_webhook(request: Request) -> Response:
         # Smart Handoff: generate summary ONLY on first human takeover
         if not already_taken_over and account_id:
             asyncio.create_task(_send_handoff_summary(int(account_id), conv_id))
+            # Pipeline: mark lead as transferred on first human takeover
+            try:
+                await supabase_svc.update_lead_by_conversation(conv_id, {
+                    "pipeline_status": "transferido",
+                })
+            except Exception:
+                logger.warning("Pipeline transfer update failed for conv %d (non-critical).", conv_id)
 
         return Response(content='{"detail":"human takeover set"}', status_code=200, media_type="application/json")
 
@@ -417,7 +449,7 @@ async def transfer_webhook(payload: TransferPayload) -> dict[str, str]:
         return {"resposta": result}
     except Exception:
         logger.exception("Transfer webhook failed.")
-        return {"resposta": "Erro na transferencia."}
+        return {"resposta": "Erro na transferência."}
 
 
 @app.get("/debug/rabbitmq")
