@@ -147,3 +147,13 @@ class InstanceCreate(BaseModel):
 
     account_id: int
     display_name: str = ""
+
+
+class InstanceRegister(BaseModel):
+    """Payload for registering an existing Uazapi instance by token."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    account_id: int
+    uazapi_token: str
+    display_name: str = ""

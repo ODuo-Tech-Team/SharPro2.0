@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InstanceCard } from "@/components/dashboard/instance-card";
 import { QrModal } from "@/components/dashboard/qr-modal";
-import { Loader2, Plus, Smartphone } from "lucide-react";
+import { Loader2, Plus, Smartphone, X } from "lucide-react";
 
 interface WhatsAppInstance {
   id: string;
@@ -28,9 +28,14 @@ interface ChannelsListProps {
 export function ChannelsList({ accountId, plan }: ChannelsListProps) {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [qrModalInstanceId, setQrModalInstanceId] = useState<string | null>(null);
+
+  // Register form state
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [registerToken, setRegisterToken] = useState("");
+  const [registerName, setRegisterName] = useState("");
+  const [registering, setRegistering] = useState(false);
 
   const maxConnections = plan?.max_connections ?? 1;
   const isUnlimited = maxConnections === -1;
@@ -55,18 +60,24 @@ export function ChannelsList({ accountId, plan }: ChannelsListProps) {
     fetchInstances();
   }, [fetchInstances]);
 
-  // No auto-open - QR modal only opens on explicit user action (QR Code button or Add WhatsApp)
-
-  const handleCreate = async () => {
-    setCreating(true);
+  const handleRegister = async () => {
+    if (!registerToken.trim()) {
+      setError("Informe o token da instancia Uazapi.");
+      return;
+    }
+    setRegistering(true);
     setError("");
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ account_id: accountId }),
+          body: JSON.stringify({
+            account_id: accountId,
+            uazapi_token: registerToken.trim(),
+            display_name: registerName.trim(),
+          }),
         }
       );
       const data = await res.json();
@@ -76,7 +87,7 @@ export function ChannelsList({ accountId, plan }: ChannelsListProps) {
         if (typeof detail === "object" && detail.error === "plan_limit_exceeded") {
           setError(`Limite do plano atingido: ${detail.current}/${detail.limit} conexoes. Faca upgrade.`);
         } else {
-          setError(typeof detail === "string" ? detail : "Erro ao criar instancia.");
+          setError(typeof detail === "string" ? detail : "Erro ao registrar instancia.");
         }
         return;
       }
@@ -84,11 +95,14 @@ export function ChannelsList({ accountId, plan }: ChannelsListProps) {
       if (data.instance?.id) {
         setQrModalInstanceId(data.instance.id);
       }
+      setShowRegisterForm(false);
+      setRegisterToken("");
+      setRegisterName("");
       await fetchInstances();
     } catch (err) {
-      setError("Erro de rede ao criar instancia.");
+      setError("Erro de rede ao registrar instancia.");
     } finally {
-      setCreating(false);
+      setRegistering(false);
     }
   };
 
@@ -153,15 +167,11 @@ export function ChannelsList({ accountId, plan }: ChannelsListProps) {
             </p>
           </div>
           <Button
-            onClick={handleCreate}
-            disabled={creating || !canCreate}
+            onClick={() => setShowRegisterForm(true)}
+            disabled={registering || !canCreate || showRegisterForm}
             className="gap-1.5 bg-shark-blue hover:bg-shark-blue/90"
           >
-            {creating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
+            <Plus className="h-4 w-4" />
             Adicionar WhatsApp
           </Button>
         </CardHeader>
@@ -172,18 +182,66 @@ export function ChannelsList({ accountId, plan }: ChannelsListProps) {
             </div>
           )}
 
+          {showRegisterForm && (
+            <div className="mb-4 rounded-lg border bg-muted/30 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Registrar Instancia Uazapi</h3>
+                <button
+                  onClick={() => { setShowRegisterForm(false); setError(""); }}
+                  className="rounded-sm opacity-70 hover:opacity-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Token da Instancia *</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 69572c0c-c9c6-406e-a988-0a15070ae3a7"
+                    value={registerToken}
+                    onChange={(e) => setRegisterToken(e.target.value)}
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-shark-blue"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Nome (opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: WhatsApp Vendas"
+                    value={registerName}
+                    onChange={(e) => setRegisterName(e.target.value)}
+                    className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-shark-blue"
+                  />
+                </div>
+                <Button
+                  onClick={handleRegister}
+                  disabled={registering || !registerToken.trim()}
+                  className="w-full gap-2 bg-shark-blue hover:bg-shark-blue/90"
+                >
+                  {registering ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  Registrar e Conectar
+                </Button>
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : instances.length === 0 ? (
+          ) : instances.length === 0 && !showRegisterForm ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Smartphone className="mb-3 h-12 w-12 text-muted-foreground/30" />
               <p className="text-lg font-medium text-muted-foreground">
                 Nenhum canal configurado
               </p>
               <p className="mb-4 text-sm text-muted-foreground">
-                Clique em "Adicionar WhatsApp" para conectar seu primeiro numero.
+                Clique em "Adicionar WhatsApp" e informe o token da instancia Uazapi.
               </p>
             </div>
           ) : (

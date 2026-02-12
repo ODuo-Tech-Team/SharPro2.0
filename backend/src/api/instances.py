@@ -24,7 +24,7 @@ from src.config import get_settings
 from src.services import supabase_client as supabase_svc
 from src.services import uazapi as uazapi_svc
 from src.api.middleware import check_plan_limit, check_org_active
-from src.api.schemas import InstanceCreate
+from src.api.schemas import InstanceCreate, InstanceRegister
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +99,64 @@ async def create_instance(payload: InstanceCreate) -> dict[str, Any]:
         uazapi_token=uazapi_token,
         status="connecting",
     )
+
+    return {
+        "status": "ok",
+        "instance": instance,
+    }
+
+
+@instance_router.post("/register")
+async def register_instance(payload: InstanceRegister) -> dict[str, Any]:
+    """
+    Register an existing Uazapi instance by its token.
+
+    Validates the token against Uazapi (GET /instance/status),
+    then saves it to the DB without creating anything new.
+    """
+    org = await supabase_svc.get_organization_by_account_id(payload.account_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    await check_org_active(org)
+    await check_plan_limit(org["id"], "connections")
+
+    token = payload.uazapi_token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="uazapi_token is required")
+
+    # Validate the token by checking status on Uazapi
+    try:
+        status_data = await uazapi_svc.get_instance_status(token)
+    except Exception as exc:
+        logger.exception("Failed to validate Uazapi token.")
+        raise HTTPException(status_code=400, detail=f"Token invalido ou Uazapi indisponivel: {exc}")
+
+    # Extract instance name from Uazapi response
+    inst_info = status_data.get("instance", {})
+    instance_name = inst_info.get("instanceName", "") or inst_info.get("name", "") or f"uazapi-{token[:8]}"
+    display_name = payload.display_name or instance_name
+
+    # Check connection status
+    raw_status = (inst_info.get("status", status_data.get("status", ""))).lower()
+    is_connected = raw_status in ("open", "connected") or status_data.get("connected", False)
+    db_status = "connected" if is_connected else "disconnected"
+    phone = inst_info.get("phoneNumber", "") or inst_info.get("phone", "") or status_data.get("phone", "")
+
+    # Persist to DB
+    instance = await supabase_svc.create_instance_record(
+        org_id=org["id"],
+        instance_name=instance_name,
+        display_name=display_name,
+        uazapi_token=token,
+        status=db_status,
+    )
+
+    if phone:
+        await supabase_svc.update_instance(instance["id"], {"phone_number": phone})
+        instance["phone_number"] = phone
+
+    logger.info("Registered existing Uazapi instance '%s' (status=%s) for org %s.", instance_name, db_status, org["id"])
 
     return {
         "status": "ok",
