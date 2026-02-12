@@ -9,7 +9,6 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  Clock,
   Send,
   Bot,
   Brain,
@@ -21,7 +20,7 @@ interface KnowledgeFile {
   file_size: number;
   mime_type: string;
   status: string;
-  chunk_count: number;
+  content: string | null;
   created_at: string;
 }
 
@@ -35,35 +34,6 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getStatusInfo(status: string) {
-  switch (status) {
-    case "ready":
-      return {
-        label: "Pronto",
-        icon: CheckCircle,
-        classes: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-      };
-    case "processing":
-      return {
-        label: "Processando",
-        icon: Clock,
-        classes: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-      };
-    case "error":
-      return {
-        label: "Erro",
-        icon: AlertCircle,
-        classes: "text-red-400 bg-red-500/10 border-red-500/20",
-      };
-    default:
-      return {
-        label: status,
-        icon: Clock,
-        classes: "text-slate-400 bg-slate-500/10 border-slate-500/20",
-      };
-  }
 }
 
 export function TrainingContent({
@@ -233,9 +203,9 @@ export function TrainingContent({
   };
 
   const readyFiles = files.filter((f) => f.status === "ready").length;
-  const totalChunks = files
+  const totalChars = files
     .filter((f) => f.status === "ready")
-    .reduce((sum, f) => sum + (f.chunk_count || 0), 0);
+    .reduce((sum, f) => sum + (f.content?.length || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -243,10 +213,11 @@ export function TrainingContent({
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white">
-            Treinar Robo
+            Base de Conhecimento
           </h1>
           <p className="text-slate-400">
-            Envie documentos PDF para a base de conhecimento da IA.
+            Envie PDFs com informacoes sobre seus produtos e servicos. O texto
+            sera extraido e adicionado ao conhecimento da IA.
           </p>
         </div>
         <div>
@@ -274,7 +245,7 @@ export function TrainingContent({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
           <p className="text-sm text-slate-400">Arquivos</p>
           <p className="mt-1 text-2xl font-bold text-white">{files.length}</p>
@@ -283,12 +254,6 @@ export function TrainingContent({
           <p className="text-sm text-slate-400">Prontos</p>
           <p className="mt-1 text-2xl font-bold text-emerald-400">
             {readyFiles}
-          </p>
-        </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-          <p className="text-sm text-slate-400">Chunks</p>
-          <p className="mt-1 text-2xl font-bold text-blue-400">
-            {totalChunks}
           </p>
         </div>
       </div>
@@ -309,8 +274,8 @@ export function TrainingContent({
         ) : (
           <div className="space-y-3">
             {files.map((file) => {
-              const statusInfo = getStatusInfo(file.status);
-              const StatusIcon = statusInfo.icon;
+              const isReady = file.status === "ready";
+              const isError = file.status === "error";
               return (
                 <div
                   key={file.id}
@@ -325,15 +290,27 @@ export function TrainingContent({
                     </p>
                     <p className="text-xs text-slate-500">
                       {formatFileSize(file.file_size)}
-                      {file.chunk_count > 0 &&
-                        ` · ${file.chunk_count} chunks`}
+                      {file.content &&
+                        ` · ${file.content.length.toLocaleString()} caracteres`}
                     </p>
                   </div>
                   <span
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${statusInfo.classes}`}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+                      isReady
+                        ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                        : isError
+                          ? "text-red-400 bg-red-500/10 border-red-500/20"
+                          : "text-amber-400 bg-amber-500/10 border-amber-500/20"
+                    }`}
                   >
-                    <StatusIcon className="h-3 w-3" />
-                    {statusInfo.label}
+                    {isReady ? (
+                      <CheckCircle className="h-3 w-3" />
+                    ) : isError ? (
+                      <AlertCircle className="h-3 w-3" />
+                    ) : (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    )}
+                    {isReady ? "Pronto" : isError ? "Erro" : "Processando"}
                   </span>
                   <button
                     type="button"
@@ -373,7 +350,7 @@ export function TrainingContent({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !simulating) handleSimulate();
             }}
-            placeholder="Faca uma pergunta para testar a base..."
+            placeholder="Faca uma pergunta para testar..."
             className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
           />
           <button
@@ -391,7 +368,7 @@ export function TrainingContent({
         </div>
 
         {simulationResult && (
-          <div className="mt-4 space-y-3">
+          <div className="mt-4">
             <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
               <p className="mb-1 text-xs font-medium text-blue-400">
                 Resposta da IA
@@ -400,16 +377,6 @@ export function TrainingContent({
                 {simulationResult.answer}
               </p>
             </div>
-            {simulationResult.context_used && (
-              <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                <p className="mb-1 text-xs font-medium text-slate-400">
-                  Contexto utilizado da base
-                </p>
-                <p className="whitespace-pre-wrap text-xs text-slate-500">
-                  {simulationResult.context_used}
-                </p>
-              </div>
-            )}
           </div>
         )}
       </div>

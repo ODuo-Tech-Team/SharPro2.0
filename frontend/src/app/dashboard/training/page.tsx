@@ -7,7 +7,7 @@ interface KnowledgeFile {
   file_size: number;
   mime_type: string;
   status: string;
-  chunk_count: number;
+  content: string | null;
   created_at: string;
 }
 

@@ -885,38 +885,6 @@ async def _run_campaign_sender(campaign_id: str) -> None:
         logger.exception("Campaign sender crashed for campaign %s.", campaign_id)
 
 
-async def _on_knowledge_message(message: AbstractIncomingMessage) -> None:
-    """Callback for knowledge processing queue. Processes PDF uploads."""
-    async with message.process():
-        try:
-            payload: dict[str, Any] = json.loads(message.body.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            logger.error("Could not decode knowledge message body. Dropping.")
-            return
-
-        file_id = payload.get("file_id")
-        org_id = payload.get("org_id")
-        file_name = payload.get("file_name")
-        file_bytes_b64 = payload.get("file_bytes_b64")
-
-        if not all([file_id, org_id, file_name, file_bytes_b64]):
-            logger.warning("Knowledge message missing required fields. Dropping.")
-            return
-
-        import base64
-        file_bytes = base64.b64decode(file_bytes_b64)
-
-        logger.info("Processing knowledge file: %s (org=%s).", file_name, org_id)
-
-        from src.services.knowledge_service import process_pdf
-        await process_pdf(
-            file_bytes=file_bytes,
-            file_name=file_name,
-            org_id=org_id,
-            file_id=file_id,
-        )
-
-
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -963,15 +931,6 @@ async def main() -> None:
         await campaign_queue.bind(exchange, routing_key="campaign")
         await campaign_queue.consume(_on_campaign_message)
         logger.info("Queue 'campaign_messages' is now consuming campaign events.")
-
-        # --- Queue 4: knowledge_processing (PDF → embeddings) ---
-        knowledge_queue = await channel.declare_queue(
-            "knowledge_processing",
-            durable=True,
-        )
-        await knowledge_queue.bind(exchange, routing_key="knowledge")
-        await knowledge_queue.consume(_on_knowledge_message)
-        logger.info("Queue 'knowledge_processing' is now consuming knowledge events.")
 
         # --- Queue 3: replay_to_message (Flow 1: reply with text) ---
         reply_queue = await channel.declare_queue(

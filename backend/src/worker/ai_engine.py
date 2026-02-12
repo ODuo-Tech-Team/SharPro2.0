@@ -27,7 +27,6 @@ from src.services import redis_client as redis_svc
 from src.services import supabase_client as supabase_svc
 from src.services.transfer import execute_transfer
 from src.services.inactivity import process_stale_atendimentos
-from src.services.knowledge_service import search_knowledge
 
 logger = logging.getLogger(__name__)
 
@@ -398,12 +397,12 @@ async def run_completion(ctx: ConversationContext) -> str:
     # Use per-org OpenAI key if present; fall back to the global key.
     client = AsyncOpenAI(api_key=settings.openai_api_key)
 
-    # --- RAG: inject knowledge base context ---
+    # --- Knowledge base: inject all knowledge content into prompt ---
     knowledge_context = ""
     try:
-        knowledge_context = await search_knowledge(ctx.organization_id, ctx.user_message)
+        knowledge_context = await supabase_svc.get_all_knowledge_content(ctx.organization_id)
     except Exception:
-        logger.warning("Knowledge search failed for org %s (non-critical).", ctx.organization_id)
+        logger.warning("Knowledge fetch failed for org %s (non-critical).", ctx.organization_id)
 
     rag_prefix = ""
     if knowledge_context:

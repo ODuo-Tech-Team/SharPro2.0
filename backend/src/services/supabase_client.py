@@ -1379,24 +1379,25 @@ async def insert_knowledge_file(
     file_name: str,
     file_size: int,
     mime_type: str = "application/pdf",
+    content: str = "",
 ) -> dict[str, Any]:
-    """Insert a knowledge file record."""
+    """Insert a knowledge file record with extracted content."""
+    client = _get_client()
+    payload = {
+        "organization_id": org_id,
+        "file_name": file_name,
+        "file_size": file_size,
+        "mime_type": mime_type,
+        "content": content,
+        "status": "ready" if content else "processing",
+        "chunk_count": 0,
+    }
     try:
-        client = _get_client()
-        payload = {
-            "organization_id": org_id,
-            "file_name": file_name,
-            "file_size": file_size,
-            "mime_type": mime_type,
-            "status": "processing",
-        }
         response = client.table("knowledge_files").insert(payload).execute()
-        result = response.data[0] if response.data else {}
-        logger.info("Knowledge file inserted: %s (org=%s).", file_name, org_id)
-        return result
+        return response.data[0] if response.data else payload
     except Exception:
         logger.exception("Error inserting knowledge file '%s' for org=%s.", file_name, org_id)
-        raise
+        return payload
 
 
 async def update_knowledge_file_status(
@@ -1445,39 +1446,28 @@ async def delete_knowledge_file(file_id: str) -> None:
         raise
 
 
-async def insert_knowledge_vectors(vectors: list[dict[str, Any]]) -> None:
-    """Batch insert knowledge vectors."""
+async def get_all_knowledge_content(org_id: str) -> str:
+    """Get all knowledge content for an org, concatenated as a single string."""
+    client = _get_client()
     try:
-        client = _get_client()
-        if not vectors:
-            return
-        client.table("knowledge_vectors").insert(vectors).execute()
-        logger.info("Inserted %d knowledge vectors.", len(vectors))
+        response = (
+            client.table("knowledge_files")
+            .select("content, file_name")
+            .eq("organization_id", org_id)
+            .eq("status", "ready")
+            .order("created_at", desc=False)
+            .execute()
+        )
+        if not response.data:
+            return ""
+        parts = []
+        for f in response.data:
+            if f.get("content"):
+                parts.append(f"[{f['file_name']}]\n{f['content']}")
+        return "\n\n---\n\n".join(parts)
     except Exception:
-        logger.exception("Error inserting %d knowledge vectors.", len(vectors))
-        raise
-
-
-async def match_knowledge_vectors(
-    embedding: list[float],
-    org_id: str,
-    top_k: int = 5,
-) -> list[dict[str, Any]]:
-    """Find similar knowledge vectors using pgvector RPC."""
-    try:
-        client = _get_client()
-        response = client.rpc(
-            "match_knowledge_vectors",
-            {
-                "query_embedding": embedding,
-                "filter_org_id": org_id,
-                "match_count": top_k,
-            },
-        ).execute()
-        return response.data or []
-    except Exception:
-        logger.exception("Error matching knowledge vectors for org=%s.", org_id)
-        return []
+        logger.exception("Error fetching knowledge content for org=%s.", org_id)
+        return ""
 
 
 # ---------------------------------------------------------------------------
