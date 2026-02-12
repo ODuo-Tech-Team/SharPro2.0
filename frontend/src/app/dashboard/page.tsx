@@ -15,6 +15,13 @@ interface RecentSale {
   created_at: string;
 }
 
+interface RecentConversation {
+  conversation_id: number;
+  ai_status: string;
+  status: string;
+  updated_at: string;
+}
+
 async function getDashboardData() {
   const supabase = await createClient();
 
@@ -42,32 +49,44 @@ async function getDashboardData() {
   const orgId = profile.organization_id;
 
   // Run all queries in parallel
-  const [leadsResult, salesResult, recentSalesResult, activeConversations] =
-    await Promise.all([
-      // Total leads
-      supabase
-        .from("leads")
-        .select("id, created_at", { count: "exact" })
-        .eq("organization_id", orgId),
-      // Sales metrics
-      supabase
-        .from("sales_metrics")
-        .select("amount, source, created_at")
-        .eq("organization_id", orgId),
-      // Recent sales (latest 5)
-      supabase
-        .from("sales_metrics")
-        .select("id, amount, source, created_at")
-        .eq("organization_id", orgId)
-        .order("created_at", { ascending: false })
-        .limit(5),
-      // Active conversations (leads with status 'new' or 'qualified')
-      supabase
-        .from("leads")
-        .select("id", { count: "exact" })
-        .eq("organization_id", orgId)
-        .in("status", ["new", "qualified"]),
-    ]);
+  const [
+    leadsResult,
+    salesResult,
+    recentSalesResult,
+    activeConversations,
+    recentConversationsResult,
+  ] = await Promise.all([
+    // Total leads
+    supabase
+      .from("leads")
+      .select("id, created_at", { count: "exact" })
+      .eq("organization_id", orgId),
+    // Sales metrics
+    supabase
+      .from("sales_metrics")
+      .select("amount, source, created_at")
+      .eq("organization_id", orgId),
+    // Recent sales (latest 5)
+    supabase
+      .from("sales_metrics")
+      .select("id, amount, source, created_at")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    // Active conversations (leads with status 'new' or 'qualified')
+    supabase
+      .from("leads")
+      .select("id", { count: "exact" })
+      .eq("organization_id", orgId)
+      .in("status", ["new", "qualified"]),
+    // Recent conversations (latest 5 for the table)
+    supabase
+      .from("conversations")
+      .select("conversation_id, ai_status, status, updated_at")
+      .eq("organization_id", orgId)
+      .order("updated_at", { ascending: false })
+      .limit(5),
+  ]);
 
   // Calculate total leads
   const totalLeads = leadsResult.count ?? 0;
@@ -93,6 +112,9 @@ async function getDashboardData() {
   // Calculate sales volume
   const allSales = salesResult.data ?? [];
   const totalSalesVolume = allSales.reduce((sum, s) => sum + (s.amount || 0), 0);
+
+  // Sales count (total number of sales_metrics records)
+  const salesCount = allSales.length;
 
   // AI Efficiency
   const aiSales = allSales.filter((s) => s.source === "ai").length;
@@ -140,17 +162,29 @@ async function getDashboardData() {
     })
   );
 
+  // Recent conversations
+  const recentConversations: RecentConversation[] = (
+    recentConversationsResult.data ?? []
+  ).map((c) => ({
+    conversation_id: c.conversation_id,
+    ai_status: c.ai_status,
+    status: c.status,
+    updated_at: c.updated_at,
+  }));
+
   return {
     orgId,
     totalLeads,
     leadsTrend,
     totalSalesVolume,
+    salesCount,
     aiEfficiency,
     activeCount,
     conversationsActiveCount,
     conversationsPausedCount,
     chartData,
     recentSales,
+    recentConversations,
   };
 }
 
@@ -178,12 +212,14 @@ export default async function DashboardPage() {
       totalLeads={data.totalLeads}
       leadsTrend={data.leadsTrend}
       totalSalesVolume={data.totalSalesVolume}
+      salesCount={data.salesCount}
       aiEfficiency={data.aiEfficiency}
       activeCount={data.activeCount}
       conversationsActiveCount={data.conversationsActiveCount}
       conversationsPausedCount={data.conversationsPausedCount}
       chartData={data.chartData}
       recentSales={data.recentSales}
+      recentConversations={data.recentConversations}
     />
   );
 }

@@ -1,13 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
-import { Loader2, Smartphone, QrCode, RefreshCw, Unplug } from "lucide-react";
+import { Smartphone, Power, RefreshCw, Loader2 } from "lucide-react";
 
 interface WhatsAppInstance {
   id: string;
@@ -25,88 +19,119 @@ interface InstanceCardProps {
   onDisconnect: (instanceId: string) => void;
 }
 
-const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" | "outline" }> = {
-  connected: { label: "Conectado", variant: "success" },
-  connecting: { label: "Conectando", variant: "warning" },
-  disconnected: { label: "Desconectado", variant: "destructive" },
-  pending: { label: "Pendente", variant: "secondary" },
-  error: { label: "Erro", variant: "destructive" },
-};
-
 export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDisconnect }: InstanceCardProps) {
-  const [disconnecting, setDisconnecting] = useState(false);
-  const statusInfo = STATUS_MAP[instance.status] ?? STATUS_MAP.pending;
+  const [disconnecting, setDisconnecting] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
-  const handleDisconnect = async () => {
+  const connected: boolean = instance.status === "connected";
+  const displayName: string = instance.display_name || instance.instance_name;
+  const phoneNumber: string = instance.phone_number || instance.instance_name;
+
+  const handleDisconnect = async (): Promise<void> => {
     if (!confirm("Desconectar o WhatsApp desta instancia? Voce podera conectar outro numero depois.")) return;
     setDisconnecting(true);
-    await onDisconnect(instance.id);
-    setDisconnecting(false);
+    try {
+      await onDisconnect(instance.id);
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const handleRefresh = async (): Promise<void> => {
+    setRefreshing(true);
+    try {
+      await onRefreshStatus(instance.id);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-4">
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
-          instance.status === "connected"
-            ? "bg-emerald-500/10 text-emerald-500"
-            : "bg-muted text-muted-foreground"
-        }`}>
-          <Smartphone className="h-6 w-6" />
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 relative overflow-hidden">
+      {/* Top: Icon + Status badge */}
+      <div className="flex justify-between items-start mb-4">
+        <div
+          className={`p-3 rounded-xl ${
+            connected
+              ? "bg-green-500/10 text-green-400"
+              : "bg-red-500/10 text-red-400"
+          }`}
+        >
+          <Smartphone size={24} />
         </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-sm truncate">
-              {instance.display_name || instance.instance_name}
-            </h3>
-            <Badge variant={statusInfo.variant} className="text-[10px]">
-              {statusInfo.label}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {instance.phone_number || instance.instance_name}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {instance.status !== "connected" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onShowQr(instance.id)}
-              className="gap-1 text-xs"
-            >
-              <QrCode className="h-3.5 w-3.5" />
-              QR Code
-            </Button>
-          )}
-          {instance.status === "connected" && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleDisconnect}
-              disabled={disconnecting}
-              className="gap-1 text-xs text-orange-600 border-orange-300 hover:bg-orange-50"
-            >
-              {disconnecting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Unplug className="h-3.5 w-3.5" />
-              )}
-              Desconectar
-            </Button>
-          )}
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => onRefreshStatus(instance.id)}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
             title="Atualizar status"
           >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+          </button>
+          <div
+            className={`px-2 py-1 rounded text-xs font-mono ${
+              connected
+                ? "bg-green-500/10 text-green-400"
+                : "bg-red-500/10 text-red-400"
+            }`}
+          >
+            {connected ? "ONLINE" : "OFFLINE"}
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Name + Phone */}
+      <h3 className="text-lg font-bold text-white truncate">{displayName}</h3>
+      <p className="text-slate-400 text-sm mb-6 truncate">{phoneNumber}</p>
+
+      {/* Connected state */}
+      {connected && (
+        <div className="space-y-4">
+          {/* Battery indicator */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-slate-500">Bateria</span>
+              <span className="text-xs text-green-400 font-mono">85%</span>
+            </div>
+            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-green-500 rounded-full w-[85%] transition-all" />
+            </div>
+          </div>
+
+          {/* Disconnect button */}
+          <button
+            onClick={handleDisconnect}
+            disabled={disconnecting}
+            className="w-full py-2 border border-red-900/30 text-red-400 hover:bg-red-950/30 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+          >
+            {disconnecting ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Power size={16} />
+            )}
+            Desconectar
+          </button>
+        </div>
+      )}
+
+      {/* Disconnected state */}
+      {!connected && (
+        <div className="space-y-4">
+          {/* QR placeholder */}
+          <div className="p-3 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-center">
+            <span className="text-slate-600 text-sm">QR Code Indisponivel</span>
+          </div>
+
+          {/* Generate QR button */}
+          <button
+            onClick={() => onShowQr(instance.id)}
+            className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+          >
+            <RefreshCw size={16} />
+            Gerar QR Code
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InstanceCard } from "@/components/dashboard/instance-card";
 import { QrModal } from "@/components/dashboard/qr-modal";
 import { Loader2, Smartphone } from "lucide-react";
@@ -21,10 +20,10 @@ interface ChannelsListProps {
 
 export function ChannelsList({ accountId }: ChannelsListProps) {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [qrModalInstanceId, setQrModalInstanceId] = useState<string | null>(null);
 
-  const fetchInstances = useCallback(async () => {
+  const fetchInstances = useCallback(async (): Promise<void> => {
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/instances/org/${accountId}`
@@ -43,11 +42,11 @@ export function ChannelsList({ accountId }: ChannelsListProps) {
     fetchInstances();
   }, [fetchInstances]);
 
-  const handleShowQr = (instanceId: string) => {
+  const handleShowQr = (instanceId: string): void => {
     setQrModalInstanceId(instanceId);
   };
 
-  const handleRefreshStatus = async (instanceId: string) => {
+  const handleRefreshStatus = async (instanceId: string): Promise<void> => {
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/status`
@@ -60,7 +59,7 @@ export function ChannelsList({ accountId }: ChannelsListProps) {
     }
   };
 
-  const handleDisconnect = async (instanceId: string) => {
+  const handleDisconnect = async (instanceId: string): Promise<void> => {
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/disconnect`,
@@ -76,46 +75,44 @@ export function ChannelsList({ accountId }: ChannelsListProps) {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-            <Smartphone className="h-5 w-5" />
-            Meus Canais WhatsApp
-          </CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {`${instances.length} conexoes ativas`}
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h2 className="text-2xl font-bold text-white">Meus Canais</h2>
+          <p className="text-slate-400 mt-1">
+            Gerencie as conexoes de WhatsApp da sua empresa.
           </p>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : instances.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Smartphone className="mb-3 h-12 w-12 text-muted-foreground/30" />
-              <p className="text-lg font-medium text-muted-foreground">
-                Nenhum canal configurado
-              </p>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Entre em contato com o administrador para adicionar um numero.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {instances.map((inst) => (
-                <InstanceCard
-                  key={inst.id}
-                  instance={inst}
-                  onShowQr={handleShowQr}
-                  onRefreshStatus={handleRefreshStatus}
-                  onDisconnect={handleDisconnect}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Content */}
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
+          </div>
+        ) : instances.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center">
+            <Smartphone className="mx-auto mb-4 h-12 w-12 text-slate-700" />
+            <p className="text-lg font-semibold text-white mb-1">
+              Nenhum canal configurado
+            </p>
+            <p className="text-sm text-slate-400">
+              Entre em contato com o administrador para adicionar um numero.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {instances.map((inst: WhatsAppInstance) => (
+              <InstanceCard
+                key={inst.id}
+                instance={inst}
+                onShowQr={handleShowQr}
+                onRefreshStatus={handleRefreshStatus}
+                onDisconnect={handleDisconnect}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       <QrModal
         instanceId={qrModalInstanceId ?? ""}
