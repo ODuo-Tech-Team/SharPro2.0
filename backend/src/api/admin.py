@@ -14,7 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from src.api.auth import check_superadmin
+from src.api.schemas import AdminInstanceRegister
 from src.services import supabase_client as supabase_svc
+from src.services import uazapi as uazapi_svc
 
 logger = logging.getLogger(__name__)
 
@@ -121,3 +123,133 @@ async def list_plans() -> dict[str, Any]:
     """List all available plans for the dropdown."""
     plans = await supabase_svc.get_all_plans()
     return {"status": "ok", "plans": plans}
+
+
+# ---------------------------------------------------------------------------
+# Instance Management (Admin-only)
+# ---------------------------------------------------------------------------
+
+@admin_router.get("/organizations/{org_id}/instances")
+async def admin_list_instances(org_id: str) -> dict[str, Any]:
+    """List all WhatsApp instances for a specific organization."""
+    org = await supabase_svc.get_organization_by_id(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    instances = await supabase_svc.get_org_instances(org_id)
+    return {"status": "ok", "instances": instances}
+
+
+@admin_router.post("/organizations/{org_id}/instances/register")
+async def admin_register_instance(
+    org_id: str,
+    payload: AdminInstanceRegister,
+) -> dict[str, Any]:
+    """
+    Register an existing Uazapi instance to a client organization.
+
+    Validates the token against Uazapi, extracts instance metadata,
+    and saves the record to the database linked to the given org.
+    """
+    # Validate organization exists
+    org = await supabase_svc.get_organization_by_id(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    token = payload.uazapi_token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="uazapi_token is required")
+
+    # Validate the token by checking status on Uazapi
+    try:
+        status_data = await uazapi_svc.get_instance_status(token)
+    except Exception as exc:
+        logger.exception("Admin: failed to validate Uazapi token for org %s.", org_id)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Token invalido ou Uazapi indisponivel: {exc}",
+        )
+
+    # Extract instance name from Uazapi response
+    inst_info = status_data.get("instance", {})
+    instance_name = (
+        inst_info.get("instanceName", "")
+        or inst_info.get("name", "")
+        or f"uazapi-{token[:8]}"
+    )
+    display_name = payload.display_name or instance_name
+
+    # Check connection status
+    raw_status = (inst_info.get("status", status_data.get("status", ""))).lower()
+    is_connected = raw_status in ("open", "connected") or status_data.get("connected", False)
+    db_status = "connected" if is_connected else "disconnected"
+    phone = (
+        inst_info.get("phoneNumber", "")
+        or inst_info.get("phone", "")
+        or status_data.get("phone", "")
+    )
+
+    # Persist to DB with the target organization
+    instance = await supabase_svc.create_instance_record(
+        org_id=org_id,
+        instance_name=instance_name,
+        display_name=display_name,
+        uazapi_token=token,
+        status=db_status,
+    )
+
+    if phone:
+        await supabase_svc.update_instance(instance["id"], {"phone_number": phone})
+        instance["phone_number"] = phone
+
+    logger.info(
+        "Admin registered Uazapi instance '%s' (status=%s) for org %s.",
+        instance_name,
+        db_status,
+        org_id,
+    )
+
+    return {"status": "ok", "instance": instance}
+
+
+@admin_router.delete("/organizations/{org_id}/instances/{instance_id}")
+async def admin_delete_instance(org_id: str, instance_id: str) -> dict[str, Any]:
+    """
+    Delete an instance from Uazapi and from the database.
+
+    Verifies the instance belongs to the specified organization before
+    proceeding with deletion.
+    """
+    # Verify instance exists
+    instance = await supabase_svc.get_instance(instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="Instance not found")
+
+    # Verify instance belongs to the specified organization
+    if instance.get("organization_id") != org_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Instance does not belong to this organization",
+        )
+
+    # Delete from Uazapi (best-effort; continue even if it fails)
+    if instance.get("uazapi_token"):
+        try:
+            await uazapi_svc.delete_instance(instance["uazapi_token"])
+        except Exception:
+            logger.warning(
+                "Admin: failed to delete Uazapi instance '%s'. Continuing with DB cleanup.",
+                instance.get("instance_name"),
+            )
+
+    # Delete from DB
+    await supabase_svc.delete_instance_record(instance_id)
+
+    logger.info(
+        "Admin deleted instance '%s' (id=%s) from org %s.",
+        instance.get("instance_name"),
+        instance_id,
+        org_id,
+    )
+
+    return {"status": "ok", "detail": "Instance deleted"}

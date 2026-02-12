@@ -7,7 +7,7 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { Loader2, Smartphone, Trash2, QrCode, RefreshCw, Unplug } from "lucide-react";
+import { Loader2, Smartphone, QrCode, RefreshCw, Unplug } from "lucide-react";
 
 interface WhatsAppInstance {
   id: string;
@@ -22,7 +22,6 @@ interface InstanceCardProps {
   instance: WhatsAppInstance;
   onShowQr: (instanceId: string) => void;
   onRefreshStatus: (instanceId: string) => void;
-  onDelete: (instanceId: string) => void;
   onDisconnect: (instanceId: string) => void;
 }
 
@@ -34,17 +33,9 @@ const STATUS_MAP: Record<string, { label: string; variant: "success" | "warning"
   error: { label: "Erro", variant: "destructive" },
 };
 
-export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDelete, onDisconnect }: InstanceCardProps) {
-  const [deleting, setDeleting] = useState(false);
+export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDisconnect }: InstanceCardProps) {
   const [disconnecting, setDisconnecting] = useState(false);
   const statusInfo = STATUS_MAP[instance.status] ?? STATUS_MAP.pending;
-
-  const handleDelete = async () => {
-    if (!confirm("Tem certeza que deseja remover esta instancia?")) return;
-    setDeleting(true);
-    await onDelete(instance.id);
-    setDeleting(false);
-  };
 
   const handleDisconnect = async () => {
     if (!confirm("Desconectar o WhatsApp desta instancia? Voce podera conectar outro numero depois.")) return;
@@ -113,20 +104,6 @@ export function InstanceCard({ instance, onShowQr, onRefreshStatus, onDelete, on
             title="Atualizar status"
           >
             <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleDelete}
-            disabled={deleting}
-            title="Remover instancia"
-            className="text-destructive hover:text-destructive"
-          >
-            {deleting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
           </Button>
         </div>
       </CardContent>

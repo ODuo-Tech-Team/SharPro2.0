@@ -1,10 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { ChannelsList } from "@/components/dashboard/channels-list";
 
-interface PlanInfo {
-  max_connections: number;
-}
-
 async function getChannelsData() {
   const supabase = await createClient();
 
@@ -24,7 +20,7 @@ async function getChannelsData() {
 
   const { data: org } = await supabase
     .from("organizations")
-    .select("chatwoot_account_id, plans(max_connections)")
+    .select("chatwoot_account_id")
     .eq("id", profile.organization_id)
     .single();
 
@@ -32,7 +28,6 @@ async function getChannelsData() {
 
   return {
     accountId: org.chatwoot_account_id as number | null,
-    plan: (org.plans as unknown as PlanInfo) ?? null,
   };
 }
 
@@ -59,11 +54,11 @@ export default async function ChannelsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Canais</h1>
         <p className="text-muted-foreground">
-          Gerencie suas conexoes WhatsApp e adicione novos numeros.
+          Gerencie suas conexoes WhatsApp.
         </p>
       </div>
 
-      <ChannelsList accountId={data.accountId} plan={data.plan} />
+      <ChannelsList accountId={data.accountId} />
     </div>
   );
 }

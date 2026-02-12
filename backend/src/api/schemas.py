@@ -157,3 +157,16 @@ class InstanceRegister(BaseModel):
     account_id: int
     uazapi_token: str
     display_name: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Admin Instance schemas
+# ---------------------------------------------------------------------------
+
+class AdminInstanceRegister(BaseModel):
+    """Payload for admin registering an existing Uazapi instance to an organization."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    uazapi_token: str
+    display_name: str = ""

@@ -10,6 +10,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
+import { AdminInstances } from "@/components/admin/admin-instances";
 
 interface Organization {
   id: string;
@@ -207,6 +208,9 @@ export function EditClientModal({
             <TabsTrigger value="integration" className="flex-1">
               Integracao Tecnica
             </TabsTrigger>
+            <TabsTrigger value="instances" className="flex-1">
+              Instancias WhatsApp
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Subscription & Access */}
@@ -341,6 +345,14 @@ export function EditClientModal({
                 Salvar
               </Button>
             </div>
+          </TabsContent>
+
+          {/* Tab 4: WhatsApp Instances */}
+          <TabsContent value="instances" className="space-y-4">
+            <AdminInstances
+              orgId={organization.id}
+              accessToken={accessToken}
+            />
           </TabsContent>
         </Tabs>
       </DialogContent>
