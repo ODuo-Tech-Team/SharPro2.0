@@ -7,6 +7,15 @@ interface ConversationRow {
   ai_status: string;
 }
 
+export interface WhatsAppInstance {
+  id: string;
+  instance_name: string;
+  display_name: string;
+  phone_number: string | null;
+  status: string;
+  chatwoot_inbox_id: number | null;
+}
+
 async function getConversationsData() {
   const supabase = await createClient();
 
@@ -26,7 +35,7 @@ async function getConversationsData() {
 
   const orgId = profile.organization_id;
 
-  const [conversationsResult, orgResult] = await Promise.all([
+  const [conversationsResult, orgResult, instancesResult] = await Promise.all([
     supabase
       .from("conversations")
       .select("id, conversation_id, ai_status")
@@ -36,10 +45,16 @@ async function getConversationsData() {
       .select("chatwoot_account_id")
       .eq("id", orgId)
       .single(),
+    supabase
+      .from("whatsapp_instances")
+      .select("id, instance_name, display_name, phone_number, status, chatwoot_inbox_id")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: true }),
   ]);
 
   const conversations = conversationsResult.data ?? [];
   const accountId = orgResult.data?.chatwoot_account_id ?? null;
+  const instances: WhatsAppInstance[] = instancesResult.data ?? [];
 
   // Build ai_status map keyed by conversation_id
   const aiStatusMap: Record<number, string> = {};
@@ -47,7 +62,7 @@ async function getConversationsData() {
     aiStatusMap[c.conversation_id] = c.ai_status;
   });
 
-  return { orgId, accountId, aiStatusMap };
+  return { orgId, accountId, aiStatusMap, instances };
 }
 
 export default async function ConversationsPage() {
@@ -72,6 +87,7 @@ export default async function ConversationsPage() {
     <ChatLayout
       accountId={data.accountId}
       aiStatusMap={data.aiStatusMap}
+      instances={data.instances}
     />
   );
 }

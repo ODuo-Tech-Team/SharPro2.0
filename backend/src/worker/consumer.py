@@ -443,32 +443,29 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
 
         # INBOX GUARD (second layer - first layer is in webhook handler)
         # Ensures AI NEVER responds to messages from wrong inboxes.
+        # Uses multi-inbox lookup: checks all whatsapp_instances for the org.
         org_check = await supabase_svc.get_organization_by_account_id(account_id)
-        if not org_check:
+        valid_inboxes = await supabase_svc.get_org_inbox_ids(account_id)
+        if valid_inboxes:
+            if not inbox_id:
+                logger.warning(
+                    "INBOX UNKNOWN (inbox_id=0) for conversation %d but org has inboxes %s. Rejecting.",
+                    conversation_id, valid_inboxes,
+                )
+                return
+            if int(inbox_id) not in valid_inboxes:
+                logger.warning(
+                    "INBOX MISMATCH: message from inbox %d but org allows %s. Skipping.",
+                    inbox_id, valid_inboxes,
+                )
+                return
+            logger.info("Inbox check OK: inbox=%d is in org valid inboxes %s.", inbox_id, valid_inboxes)
+        elif not org_check:
             logger.error(
                 "NO ORGANIZATION FOUND for account_id=%d. Dropping message.",
                 account_id,
             )
             return
-        elif org_check.get("inbox_id"):
-            expected_inbox = int(org_check["inbox_id"])
-            if not inbox_id:
-                # inbox_id could not be extracted from payload — REJECT to be safe.
-                # This prevents the AI from responding when we can't verify the inbox.
-                logger.warning(
-                    "INBOX UNKNOWN (inbox_id=0) for conversation %d but org expects inbox %d. "
-                    "Rejecting to prevent AI responding in wrong inbox.",
-                    conversation_id, expected_inbox,
-                )
-                return
-            if int(inbox_id) != expected_inbox:
-                logger.warning(
-                    "INBOX MISMATCH: message from inbox %d but org expects inbox %d. Skipping.",
-                    inbox_id,
-                    expected_inbox,
-                )
-                return
-            logger.info("Inbox check OK: inbox=%d matches org expected=%d.", inbox_id, expected_inbox)
         else:
             logger.warning(
                 "Organization has no inbox_id configured for account_id=%d. "
@@ -590,18 +587,18 @@ async def _on_reply_message(message: AbstractIncomingMessage) -> None:
             logger.warning("Reply message missing required fields. Dropping.")
             return
 
-        # INBOX GUARD for reply queue
+        # INBOX GUARD for reply queue (multi-inbox)
         if account_id:
-            org_check = await supabase_svc.get_organization_by_account_id(account_id)
-            if org_check and org_check.get("inbox_id"):
+            valid_inboxes = await supabase_svc.get_org_inbox_ids(account_id)
+            if valid_inboxes:
                 conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
                     url=url_chatwoot, token=api_token,
                     account_id=account_id, conversation_id=conversation_id,
                 )
-                if conv_inbox and conv_inbox != int(org_check["inbox_id"]):
+                if conv_inbox and conv_inbox not in valid_inboxes:
                     logger.warning(
-                        "REPLY BLOCKED: conversation %d in inbox %d, expected %d.",
-                        conversation_id, conv_inbox, int(org_check["inbox_id"]),
+                        "REPLY BLOCKED: conversation %d in inbox %d, org allows %s.",
+                        conversation_id, conv_inbox, valid_inboxes,
                     )
                     return
 

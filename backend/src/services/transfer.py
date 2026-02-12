@@ -77,16 +77,14 @@ async def execute_transfer(
     conversation_id = parsed["conversation_id"]
     phone = parsed["phone"]
 
-    # --- INBOX GUARD: verify conversation belongs to org's inbox ---
-    org_check = await supabase_svc.get_organization_by_account_id(account_id)
-    if org_check and org_check.get("inbox_id"):
-        expected_inbox = int(org_check["inbox_id"])
-        if inbox_id_from_session and inbox_id_from_session != expected_inbox:
-            logger.error(
-                "TRANSFER BLOCKED: session inbox %d != org inbox %d. conversation=%d.",
-                inbox_id_from_session, expected_inbox, conversation_id,
-            )
-            return "Erro: transfer blocked (inbox mismatch)."
+    # --- INBOX GUARD: verify conversation belongs to org's valid inboxes (multi-inbox) ---
+    valid_inboxes = await supabase_svc.get_org_inbox_ids(account_id)
+    if valid_inboxes and inbox_id_from_session and inbox_id_from_session not in valid_inboxes:
+        logger.error(
+            "TRANSFER BLOCKED: session inbox %d not in org's valid inboxes %s. conversation=%d.",
+            inbox_id_from_session, valid_inboxes, conversation_id,
+        )
+        return "Erro: transfer blocked (inbox mismatch)."
 
     # --- Step 1: Lookup empresa for org config ---
     empresa = await supabase_svc.get_empresa_by_account_and_company(account_id, company)

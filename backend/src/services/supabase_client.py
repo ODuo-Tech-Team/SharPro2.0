@@ -1180,6 +1180,90 @@ async def get_org_instances(org_id: str) -> list[dict[str, Any]]:
         return []
 
 
+async def get_org_inbox_ids(account_id: int) -> list[int]:
+    """
+    Get all valid inbox_ids for an organization by looking up its whatsapp_instances.
+    Falls back to org.inbox_id if no instances have chatwoot_inbox_id set.
+
+    Returns list of inbox_ids that the org is allowed to interact with.
+    """
+    try:
+        client = _get_client()
+        # First get the org
+        org_resp = (
+            client.table("organizations")
+            .select("id, inbox_id")
+            .eq("chatwoot_account_id", account_id)
+            .limit(1)
+            .execute()
+        )
+        if not org_resp.data:
+            return []
+
+        org = org_resp.data[0]
+        org_id = org["id"]
+
+        # Get all inbox_ids from whatsapp_instances
+        inst_resp = (
+            client.table("whatsapp_instances")
+            .select("chatwoot_inbox_id")
+            .eq("organization_id", org_id)
+            .execute()
+        )
+
+        inbox_ids = [
+            int(row["chatwoot_inbox_id"])
+            for row in (inst_resp.data or [])
+            if row.get("chatwoot_inbox_id")
+        ]
+
+        # Fallback: if no instances have inbox_id, use org.inbox_id
+        if not inbox_ids and org.get("inbox_id"):
+            inbox_ids = [int(org["inbox_id"])]
+
+        return inbox_ids
+    except Exception:
+        logger.exception("Error getting inbox_ids for account_id=%d.", account_id)
+        return []
+
+
+async def get_org_inbox_ids_by_org_id(org_id: str) -> list[int]:
+    """Get all valid inbox_ids for an organization by org UUID."""
+    try:
+        client = _get_client()
+
+        # Get all inbox_ids from whatsapp_instances
+        inst_resp = (
+            client.table("whatsapp_instances")
+            .select("chatwoot_inbox_id")
+            .eq("organization_id", org_id)
+            .execute()
+        )
+
+        inbox_ids = [
+            int(row["chatwoot_inbox_id"])
+            for row in (inst_resp.data or [])
+            if row.get("chatwoot_inbox_id")
+        ]
+
+        # Fallback: check org.inbox_id
+        if not inbox_ids:
+            org_resp = (
+                client.table("organizations")
+                .select("inbox_id")
+                .eq("id", org_id)
+                .limit(1)
+                .execute()
+            )
+            if org_resp.data and org_resp.data[0].get("inbox_id"):
+                inbox_ids = [int(org_resp.data[0]["inbox_id"])]
+
+        return inbox_ids
+    except Exception:
+        logger.exception("Error getting inbox_ids for org_id=%s.", org_id)
+        return []
+
+
 async def get_instance(instance_id: str) -> Optional[dict[str, Any]]:
     """Get a single WhatsApp instance by ID."""
     try:

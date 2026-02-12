@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ChatwootConversation {
@@ -29,11 +29,23 @@ interface ChatwootConversation {
   last_activity_at: number;
 }
 
+interface WhatsAppInstance {
+  id: string;
+  instance_name: string;
+  display_name: string;
+  phone_number: string | null;
+  status: string;
+  chatwoot_inbox_id: number | null;
+}
+
 interface ChatSidebarProps {
   accountId: number;
   aiStatusMap: Record<number, string>;
   selectedConversationId: number | null;
   onSelectConversation: (id: number, contactName: string) => void;
+  instances: WhatsAppInstance[];
+  selectedInboxId: number | null;
+  onInboxChange: (inboxId: number | null) => void;
 }
 
 const STATUS_FILTERS = [
@@ -56,6 +68,9 @@ export function ChatSidebar({
   aiStatusMap,
   selectedConversationId,
   onSelectConversation,
+  instances,
+  selectedInboxId,
+  onInboxChange,
 }: ChatSidebarProps) {
   const [conversations, setConversations] = useState<ChatwootConversation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,15 +83,20 @@ export function ChatSidebar({
   const statusFilterRef = useRef(statusFilter);
   statusFilterRef.current = statusFilter;
 
+  const selectedInboxIdRef = useRef(selectedInboxId);
+  selectedInboxIdRef.current = selectedInboxId;
+
   const fetchConversations = useCallback(
     async (pageNum: number, reset: boolean = false) => {
       if (reset) setLoading(true);
       try {
         const currentStatus = statusFilterRef.current;
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}?status=${currentStatus}&page=${pageNum}&_t=${Date.now()}`,
-          { cache: "no-store" }
-        );
+        const currentInboxId = selectedInboxIdRef.current;
+        let url = `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}?status=${currentStatus}&page=${pageNum}&_t=${Date.now()}`;
+        if (currentInboxId) {
+          url += `&inbox_id=${currentInboxId}`;
+        }
+        const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
 
@@ -108,7 +128,7 @@ export function ChatSidebar({
     // Poll for updated conversations every 3s
     const interval = setInterval(() => fetchConversations(1, true), 3000);
     return () => clearInterval(interval);
-  }, [statusFilter, accountId, fetchConversations]);
+  }, [statusFilter, selectedInboxId, accountId, fetchConversations]);
 
   const handleLoadMore = () => {
     const nextPage = page + 1;
@@ -135,6 +155,25 @@ export function ChatSidebar({
       {/* Header */}
       <div className="border-b px-4 py-3">
         <h2 className="text-base font-semibold">Conversas</h2>
+        {/* Instance selector */}
+        <div className="mt-2">
+          <div className="relative">
+            <Smartphone className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <select
+              value={selectedInboxId ?? ""}
+              onChange={(e) => onInboxChange(e.target.value ? Number(e.target.value) : null)}
+              className="h-8 w-full appearance-none rounded-md border border-input bg-background pl-8 pr-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+            >
+              <option value="">Todos os numeros</option>
+              {instances.map((inst) => (
+                <option key={inst.id} value={inst.chatwoot_inbox_id ?? ""}>
+                  {inst.display_name || inst.instance_name}
+                  {inst.phone_number ? ` (${inst.phone_number})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
         {/* Status filters */}
         <div className="mt-2 flex gap-1">
           {STATUS_FILTERS.map((filter) => (
