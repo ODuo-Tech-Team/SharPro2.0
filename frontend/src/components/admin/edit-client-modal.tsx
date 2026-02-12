@@ -202,7 +202,7 @@ export function EditClientModal({
     try {
       const keywords = handoffKeywords
         .split(",")
-        .map((k) => k.trim())
+        .map((k: string) => k.trim())
         .filter(Boolean);
 
       const config: Record<string, any> = {
