@@ -437,8 +437,20 @@ async def debug_rabbitmq() -> dict[str, Any]:
 
 
 @app.post("/api/conversations/{conversation_id}/reactivate", status_code=200)
-async def reactivate_ai(conversation_id: int) -> dict[str, str]:
+async def reactivate_ai(conversation_id: int, account_id: int = 0) -> dict[str, str]:
     """Reactivate AI for a conversation (frontend button)."""
+    # INBOX GUARD
+    if account_id:
+        org = await supabase_svc.get_organization_by_account_id(account_id)
+        if org and org.get("inbox_id"):
+            conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
+                url=org["chatwoot_url"], token=org["chatwoot_token"],
+                account_id=account_id, conversation_id=conversation_id,
+            )
+            if conv_inbox and conv_inbox != int(org["inbox_id"]):
+                logger.warning("REACTIVATE BLOCKED: conversation %d in inbox %d, expected %d.", conversation_id, conv_inbox, int(org["inbox_id"]))
+                return {"error": "inbox mismatch"}
+
     logger.info("Reactivating AI for conversation %d via API.", conversation_id)
     await redis_svc.clear_human_takeover(conversation_id)
     await supabase_svc.set_conversation_ai_status(conversation_id, "active", status="bot")
@@ -468,8 +480,8 @@ async def chatwoot_conversations_proxy(
     if not org:
         return {"error": "Organization not found"}
 
-    # Use org's inbox_id if not explicitly provided
-    effective_inbox_id = inbox_id or org.get("inbox_id")
+    # FORCE org's inbox_id — never allow override to different inbox
+    effective_inbox_id = org.get("inbox_id") or inbox_id
 
     data = await chatwoot_svc.list_conversations(
         url=org["chatwoot_url"],
@@ -492,6 +504,16 @@ async def chatwoot_messages_proxy(
     if not org:
         return {"error": "Organization not found"}
 
+    # INBOX GUARD
+    if org.get("inbox_id"):
+        conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
+            url=org["chatwoot_url"], token=org["chatwoot_token"],
+            account_id=account_id, conversation_id=conversation_id,
+        )
+        if conv_inbox and conv_inbox != int(org["inbox_id"]):
+            logger.warning("MESSAGES PROXY BLOCKED: conversation %d in inbox %d, expected %d.", conversation_id, conv_inbox, int(org["inbox_id"]))
+            return {"error": "inbox mismatch"}
+
     messages = await chatwoot_svc.get_messages(
         url=org["chatwoot_url"],
         token=org["chatwoot_token"],
@@ -511,6 +533,16 @@ async def sse_messages(
     org = await supabase_svc.get_organization_by_account_id(account_id)
     if not org:
         return Response(status_code=404, content="Organization not found")
+
+    # INBOX GUARD
+    if org.get("inbox_id"):
+        conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
+            url=org["chatwoot_url"], token=org["chatwoot_token"],
+            account_id=account_id, conversation_id=conversation_id,
+        )
+        if conv_inbox and conv_inbox != int(org["inbox_id"]):
+            logger.warning("SSE BLOCKED: conversation %d in inbox %d, expected %d.", conversation_id, conv_inbox, int(org["inbox_id"]))
+            return Response(status_code=403, content="inbox mismatch")
 
     chatwoot_url = org["chatwoot_url"]
     chatwoot_token = org["chatwoot_token"]
@@ -562,6 +594,17 @@ async def chatwoot_send_message_proxy(
     request: Request,
 ) -> dict[str, Any]:
     """Send a message to a Chatwoot conversation and set human takeover."""
+    # INBOX GUARD — most critical: prevents sending messages to wrong inbox
+    org_guard = await supabase_svc.get_organization_by_account_id(account_id)
+    if org_guard and org_guard.get("inbox_id"):
+        conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
+            url=org_guard["chatwoot_url"], token=org_guard["chatwoot_token"],
+            account_id=account_id, conversation_id=conversation_id,
+        )
+        if conv_inbox and conv_inbox != int(org_guard["inbox_id"]):
+            logger.error("SEND MESSAGE BLOCKED: conversation %d in inbox %d, expected %d.", conversation_id, conv_inbox, int(org_guard["inbox_id"]))
+            return {"error": "inbox mismatch — cannot send to wrong inbox"}
+
     try:
         body = await request.json()
     except Exception:

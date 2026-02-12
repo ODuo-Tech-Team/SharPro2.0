@@ -590,6 +590,21 @@ async def _on_reply_message(message: AbstractIncomingMessage) -> None:
             logger.warning("Reply message missing required fields. Dropping.")
             return
 
+        # INBOX GUARD for reply queue
+        if account_id:
+            org_check = await supabase_svc.get_organization_by_account_id(account_id)
+            if org_check and org_check.get("inbox_id"):
+                conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
+                    url=url_chatwoot, token=api_token,
+                    account_id=account_id, conversation_id=conversation_id,
+                )
+                if conv_inbox and conv_inbox != int(org_check["inbox_id"]):
+                    logger.warning(
+                        "REPLY BLOCKED: conversation %d in inbox %d, expected %d.",
+                        conversation_id, conv_inbox, int(org_check["inbox_id"]),
+                    )
+                    return
+
         logger.info(
             "Reply message for conversation %d (abrir=%s, private=%s).",
             conversation_id, abrir_atendimento, private,

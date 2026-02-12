@@ -604,6 +604,28 @@ async def update_inbox(
         raise
 
 
+async def get_conversation_inbox_id(
+    url: str,
+    token: str,
+    account_id: int,
+    conversation_id: int,
+) -> int:
+    """
+    Fetch a conversation's inbox_id from Chatwoot.
+    Returns 0 if unable to determine.
+    """
+    endpoint = f"{url}/api/v1/accounts/{account_id}/conversations/{conversation_id}"
+    client = _get_client()
+    try:
+        response = await client.get(endpoint, headers=_headers(token))
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        return int(data.get("inbox_id", 0))
+    except Exception:
+        logger.warning("Could not fetch inbox_id for conversation %d.", conversation_id)
+        return 0
+
+
 async def close() -> None:
     """Close the shared httpx client."""
     global _client

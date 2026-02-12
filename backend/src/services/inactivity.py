@@ -90,6 +90,17 @@ async def _process_single_atendimento(
         logger.warning("Atendimento %d missing account_id or inbox_id. Skipping.", atendimento_id)
         return
 
+    # INBOX GUARD: verify inbox matches org's configured inbox
+    org_check = await supabase_svc.get_organization_by_account_id(account_id)
+    if org_check and org_check.get("inbox_id"):
+        expected_inbox = int(org_check["inbox_id"])
+        if int(inbox_id) != expected_inbox:
+            logger.warning(
+                "INACTIVITY BLOCKED: atendimento %d has inbox %d but org expects %d. Skipping.",
+                atendimento_id, inbox_id, expected_inbox,
+            )
+            return
+
     # Lookup empresa config for Chatwoot credentials
     empresa = await supabase_svc.get_empresa_by_inbox_and_account(inbox_id, account_id)
     if not empresa:
