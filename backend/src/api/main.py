@@ -186,6 +186,44 @@ async def chatwoot_webhook(request: Request) -> Response:
         or conversation.get("display_id")
     )
 
+    # ==================================================================
+    # GLOBAL INBOX GUARD — blocks ALL events from wrong inboxes.
+    # This is the FIRST check, before any event handling, so the AI
+    # never touches conversations from other inboxes (no responses,
+    # no Smart Handoff, no takeover flags, nothing).
+    # ==================================================================
+    webhook_inbox_id = (
+        conversation.get("inbox_id")
+        or body.get("inbox", {}).get("id")
+    )
+    if webhook_inbox_id and account_id:
+        org_guard = await supabase_svc.get_organization_by_account_id(int(account_id))
+        if org_guard and org_guard.get("inbox_id"):
+            expected = int(org_guard["inbox_id"])
+            if int(webhook_inbox_id) != expected:
+                logger.warning(
+                    "GLOBAL INBOX GUARD: event '%s' from inbox %s rejected (expected %d).",
+                    event, webhook_inbox_id, expected,
+                )
+                return Response(
+                    content='{"detail":"inbox mismatch, event ignored"}',
+                    status_code=200,
+                    media_type="application/json",
+                )
+    elif not webhook_inbox_id and account_id:
+        # Cannot verify inbox — reject to be safe
+        org_guard = await supabase_svc.get_organization_by_account_id(int(account_id))
+        if org_guard and org_guard.get("inbox_id"):
+            logger.warning(
+                "GLOBAL INBOX GUARD: event '%s' has no inbox_id, rejecting (org expects inbox %s).",
+                event, org_guard.get("inbox_id"),
+            )
+            return Response(
+                content='{"detail":"no inbox_id, event rejected"}',
+                status_code=200,
+                media_type="application/json",
+            )
+
     # ------------------------------------------------------------------
     # Event: conversation_status_changed → check if back to "pending"
     # ------------------------------------------------------------------
@@ -315,41 +353,7 @@ async def chatwoot_webhook(request: Request) -> Response:
             media_type="application/json",
         )
 
-    # ------------------------------------------------------------------
-    # INBOX GUARD: Only process messages from the org's configured inbox.
-    # This prevents the AI from responding in ALL inboxes of the account.
-    # ------------------------------------------------------------------
-    inbox_id = (
-        conversation.get("inbox_id")
-        or body.get("inbox", {}).get("id")
-    )
-    if inbox_id:
-        org_for_inbox_check = await supabase_svc.get_organization_by_account_id(int(account_id))
-        if org_for_inbox_check and org_for_inbox_check.get("inbox_id"):
-            expected_inbox = int(org_for_inbox_check["inbox_id"])
-            if int(inbox_id) != expected_inbox:
-                logger.warning(
-                    "INBOX MISMATCH in webhook: message from inbox %s but org expects inbox %d. "
-                    "Dropping to prevent AI responding in wrong inbox.",
-                    inbox_id, expected_inbox,
-                )
-                return Response(
-                    content='{"detail":"inbox mismatch, message ignored"}',
-                    status_code=200,
-                    media_type="application/json",
-                )
-            logger.info("Webhook inbox check OK: inbox=%s matches expected=%d.", inbox_id, expected_inbox)
-    else:
-        logger.warning(
-            "Could not extract inbox_id from webhook payload for account=%s conversation=%s. "
-            "Rejecting to prevent AI responding in unknown inbox.",
-            account_id, conversation_id,
-        )
-        return Response(
-            content='{"detail":"inbox_id unknown, message rejected"}',
-            status_code=200,
-            media_type="application/json",
-        )
+    # Inbox already validated by GLOBAL INBOX GUARD above.
 
     logger.info(
         "Incoming message for account=%s conversation=%s. Publishing to RabbitMQ.",
