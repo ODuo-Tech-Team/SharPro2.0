@@ -218,26 +218,6 @@ export function SimulatorContent({
                 clientes. Usa o mesmo prompt, base de conhecimento e
                 personalidade configurados.
               </p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {[
-                  "Ola, quero saber sobre precos",
-                  "Quais equipamentos voces tem?",
-                  "Quero falar com um atendente",
-                ].map((suggestion) => (
-                  <Button
-                    key={suggestion}
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => {
-                      setInput(suggestion);
-                      textareaRef.current?.focus();
-                    }}
-                  >
-                    {suggestion}
-                  </Button>
-                ))}
-              </div>
             </div>
           ) : (
             <div className="space-y-4">
