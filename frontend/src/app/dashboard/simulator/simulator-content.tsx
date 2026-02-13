@@ -60,6 +60,11 @@ export function SimulatorContent({
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  // Always keep focus on textarea
+  useEffect(() => {
+    textareaRef.current?.focus();
+  });
+
   const handleSend = useCallback(async () => {
     const content = input.trim();
     if (!content || loading) return;
@@ -79,9 +84,6 @@ export function SimulatorContent({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-
-    // Re-focus after React re-render
-    setTimeout(() => textareaRef.current?.focus(), 0);
 
     try {
       // Build history from previous messages (not including the one we just added)
@@ -132,7 +134,6 @@ export function SimulatorContent({
       ]);
     } finally {
       setLoading(false);
-      setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [input, loading, messages, orgId, accountId]);
 
