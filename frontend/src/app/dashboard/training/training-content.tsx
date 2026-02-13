@@ -103,6 +103,7 @@ export function TrainingContent({
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("org_id", orgId);
       formData.append("account_id", String(accountId));
 
       const res = await fetch(

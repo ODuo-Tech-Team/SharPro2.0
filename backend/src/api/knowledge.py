@@ -31,13 +31,18 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 @knowledge_router.post("/upload")
 async def upload_knowledge_file(
     file: UploadFile = File(...),
-    account_id: int = Form(...),
+    account_id: int = Form(0),
+    org_id: str = Form(""),
 ) -> dict[str, Any]:
     """Upload a PDF file, extract its text, and store as knowledge."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
 
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    # Prefer org_id if provided; fall back to account_id lookup
+    if org_id:
+        org = await supabase_svc.get_organization_by_id(org_id)
+    else:
+        org = await supabase_svc.get_organization_by_account_id(account_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
 
