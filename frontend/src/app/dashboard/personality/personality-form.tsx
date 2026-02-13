@@ -5,10 +5,6 @@ import { createClient } from "@/lib/supabase/client";
 import {
   Loader2,
   Save,
-  Sparkles,
-  MessageSquare,
-  SmilePlus,
-  Globe,
   Clock,
   MessageCircle,
 } from "lucide-react";
@@ -31,63 +27,9 @@ interface PersonalityFormProps {
   currentConfig: AiConfig;
 }
 
-const TONE_OPTIONS = [
-  {
-    value: "profissional",
-    label: "Profissional",
-    description: "Formal e direto ao ponto",
-    emoji: "\u{1F4BC}",
-  },
-  {
-    value: "amigavel",
-    label: "Amigável",
-    description: "Cordial e acolhedor",
-    emoji: "\u{1F60A}",
-  },
-  {
-    value: "tecnico",
-    label: "Técnico",
-    description: "Preciso e detalhado",
-    emoji: "\u{1F527}",
-  },
-  {
-    value: "descontraido",
-    label: "Descontraído",
-    description: "Leve e informal",
-    emoji: "\u{1F60E}",
-  },
-];
-
-const LENGTH_OPTIONS = [
-  {
-    value: "curta",
-    label: "Curta",
-    description: "1-2 frases diretas",
-  },
-  {
-    value: "media",
-    label: "Média",
-    description: "Respostas equilibradas",
-  },
-  {
-    value: "detalhada",
-    label: "Detalhada",
-    description: "Explicações completas",
-  },
-];
-
-const LANGUAGE_OPTIONS = [
-  { value: "pt-BR", label: "Português (BR)" },
-  { value: "en", label: "English" },
-  { value: "es", label: "Español" },
-];
-
 export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) {
   const [config, setConfig] = useState<AiConfig>({
-    tone: currentConfig.tone || "profissional",
-    response_length: currentConfig.response_length || "media",
-    use_emojis: currentConfig.use_emojis ?? false,
-    language: currentConfig.language || "pt-BR",
+    ...currentConfig,
     business_hours: currentConfig.business_hours || {
       start: "",
       end: "",
@@ -125,7 +67,7 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
       console.error("Save error:", err);
-      alert("Erro ao salvar configurações.");
+      alert("Erro ao salvar configuracoes.");
     } finally {
       setSaving(false);
     }
@@ -137,10 +79,10 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white">
-            Personalidade da IA
+            Configuracoes da IA
           </h1>
           <p className="text-slate-400">
-            Configure como o assistente deve se comunicar com seus clientes.
+            Configure o horario de atendimento e a mensagem fora do expediente.
           </p>
         </div>
         <button
@@ -151,8 +93,6 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
         >
           {saving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
-          ) : saved ? (
-            <Save className="h-4 w-4" />
           ) : (
             <Save className="h-4 w-4" />
           )}
@@ -160,132 +100,21 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
         </button>
       </div>
 
-      {/* Tone */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-purple-400" />
-          <h2 className="text-base font-semibold text-white">
-            Tom de Comunicação
-          </h2>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {TONE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => updateConfig("tone", option.value)}
-              className={`rounded-xl border p-4 text-left transition-all ${
-                config.tone === option.value
-                  ? "border-purple-500 bg-purple-500/10"
-                  : "border-slate-700 bg-slate-800/50 hover:border-slate-600"
-              }`}
-            >
-              <span className="text-2xl">{option.emoji}</span>
-              <p className="mt-2 text-sm font-medium text-white">
-                {option.label}
-              </p>
-              <p className="mt-0.5 text-xs text-slate-400">
-                {option.description}
-              </p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Response Length */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <MessageSquare className="h-5 w-5 text-blue-400" />
-          <h2 className="text-base font-semibold text-white">
-            Tamanho das Respostas
-          </h2>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {LENGTH_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => updateConfig("response_length", option.value)}
-              className={`rounded-xl border p-4 text-left transition-all ${
-                config.response_length === option.value
-                  ? "border-blue-500 bg-blue-500/10"
-                  : "border-slate-700 bg-slate-800/50 hover:border-slate-600"
-              }`}
-            >
-              <p className="text-sm font-medium text-white">{option.label}</p>
-              <p className="mt-0.5 text-xs text-slate-400">
-                {option.description}
-              </p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Emojis + Language */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Emojis Toggle */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <SmilePlus className="h-5 w-5 text-amber-400" />
-            <h2 className="text-base font-semibold text-white">Emojis</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => updateConfig("use_emojis", !config.use_emojis)}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-                config.use_emojis ? "bg-blue-600" : "bg-slate-700"
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                  config.use_emojis ? "translate-x-6" : "translate-x-1"
-                }`}
-              />
-            </button>
-            <span className="text-sm text-slate-300">
-              {config.use_emojis
-                ? "Usar emojis nas respostas"
-                : "Sem emojis"}
-            </span>
-          </div>
-        </div>
-
-        {/* Language */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <Globe className="h-5 w-5 text-emerald-400" />
-            <h2 className="text-base font-semibold text-white">Idioma</h2>
-          </div>
-          <select
-            value={config.language}
-            onChange={(e) => updateConfig("language", e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
-          >
-            {LANGUAGE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       {/* Business Hours */}
       <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
         <div className="mb-4 flex items-center gap-2">
           <Clock className="h-5 w-5 text-sky-400" />
           <h2 className="text-base font-semibold text-white">
-            Horário de Atendimento
+            Horario de Atendimento
           </h2>
         </div>
         <p className="mb-4 text-sm text-slate-400">
-          Fora do horário, a IA envia uma mensagem automática.
+          Fora do horario, a IA envia uma mensagem automatica.
         </p>
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="mb-1 block text-xs text-slate-400">
-              Início
+              Inicio
             </label>
             <input
               type="time"
@@ -305,14 +134,14 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
           </div>
           <div>
             <label className="mb-1 block text-xs text-slate-400">
-              Fuso Horário
+              Fuso Horario
             </label>
             <select
               value={config.business_hours?.timezone || "America/Sao_Paulo"}
               onChange={(e) => updateBusinessHours("timezone", e.target.value)}
               className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
             >
-              <option value="America/Sao_Paulo">Brasília (GMT-3)</option>
+              <option value="America/Sao_Paulo">Brasilia (GMT-3)</option>
               <option value="America/Manaus">Manaus (GMT-4)</option>
               <option value="America/Noronha">Noronha (GMT-2)</option>
               <option value="America/Rio_Branco">Rio Branco (GMT-5)</option>
@@ -326,7 +155,7 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
         <div className="mb-4 flex items-center gap-2">
           <MessageCircle className="h-5 w-5 text-orange-400" />
           <h2 className="text-base font-semibold text-white">
-            Mensagem Fora do Horário
+            Mensagem Fora do Horario
           </h2>
         </div>
         <textarea
@@ -334,7 +163,7 @@ export function PersonalityForm({ orgId, currentConfig }: PersonalityFormProps) 
           onChange={(e) =>
             updateConfig("outside_hours_message", e.target.value)
           }
-          placeholder="Obrigado pelo contato! Nosso horário de atendimento é de 08:00 às 18:00. Retornaremos em breve!"
+          placeholder="Obrigado pelo contato! Nosso horario de atendimento e de 08:00 as 18:00. Retornaremos em breve!"
           rows={3}
           className="w-full resize-y rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
         />
