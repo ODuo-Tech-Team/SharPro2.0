@@ -30,9 +30,10 @@ async def get_followup_leads(
     per_page: int = Query(50, ge=1, le=100),
     pipeline_status: str = Query(""),
     search: str = Query(""),
+    inbox_id: int | None = None,
 ) -> dict[str, Any]:
     """Get leads with pipeline data for the follow-up dashboard."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
     await check_org_active(org)
@@ -48,9 +49,9 @@ async def get_followup_leads(
 
 
 @followup_router.get("/{account_id}/stats")
-async def get_followup_stats(account_id: int) -> dict[str, Any]:
+async def get_followup_stats(account_id: int, inbox_id: int | None = None) -> dict[str, Any]:
     """Get pipeline status counts for the follow-up dashboard."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
     await check_org_active(org)
@@ -78,9 +79,10 @@ async def update_lead_pipeline_status(
     account_id: int,
     lead_id: str,
     payload: PipelineUpdatePayload,
+    inbox_id: int | None = None,
 ) -> dict[str, Any]:
     """Manually update a lead's pipeline status (e.g., mark as sale)."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
     await check_org_active(org)

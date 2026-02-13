@@ -106,10 +106,10 @@ app.include_router(kommo_router)
 # Smart Handoff - background summary on human takeover
 # ---------------------------------------------------------------------------
 
-async def _send_handoff_summary(account_id: int, conversation_id: int) -> None:
+async def _send_handoff_summary(account_id: int, conversation_id: int, inbox_id: int = 0) -> None:
     """Background task: generate AI summary and post as private note in Chatwoot."""
     try:
-        org = await supabase_svc.get_organization_by_account_id(account_id)
+        org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id or None)
         if not org:
             return
 
@@ -295,7 +295,8 @@ async def chatwoot_webhook(request: Request) -> Response:
                 "Sale label detected (%s) for conversation %s. Recording sale.",
                 matched_labels, conversation_id,
             )
-            org = await supabase_svc.get_organization_by_account_id(int(account_id))
+            _inbox = int(webhook_inbox_id) if webhook_inbox_id else None
+            org = await supabase_svc.get_organization_by_account_id(int(account_id), inbox_id=_inbox)
             if org:
                 await supabase_svc.insert_sale_idempotent(
                     org_id=org["id"],
@@ -344,7 +345,8 @@ async def chatwoot_webhook(request: Request) -> Response:
 
         # Smart Handoff: generate summary ONLY on first human takeover
         if not already_taken_over and account_id:
-            asyncio.create_task(_send_handoff_summary(int(account_id), conv_id))
+            _wh_inbox = int(webhook_inbox_id) if webhook_inbox_id else 0
+            asyncio.create_task(_send_handoff_summary(int(account_id), conv_id, inbox_id=_wh_inbox))
             # Pipeline: mark lead as transferred on first human takeover
             try:
                 await supabase_svc.update_lead_by_conversation(conv_id, {
@@ -366,7 +368,8 @@ async def chatwoot_webhook(request: Request) -> Response:
         await supabase_svc.set_conversation_ai_status(conv_id, "active", status="bot")
         # Send private note confirming reactivation
         if account_id:
-            org = await supabase_svc.get_organization_by_account_id(int(account_id))
+            _auto_inbox = int(webhook_inbox_id) if webhook_inbox_id else None
+            org = await supabase_svc.get_organization_by_account_id(int(account_id), inbox_id=_auto_inbox)
             if org:
                 try:
                     await chatwoot_svc.send_private_message(
@@ -501,13 +504,13 @@ async def debug_rabbitmq() -> dict[str, Any]:
 
 
 @app.post("/api/conversations/{conversation_id}/reactivate", status_code=200)
-async def reactivate_ai(conversation_id: int, account_id: int = 0) -> dict[str, str]:
+async def reactivate_ai(conversation_id: int, account_id: int = 0, inbox_id: int = 0) -> dict[str, str]:
     """Reactivate AI for a conversation (frontend button)."""
     # INBOX GUARD
     if account_id:
         valid_inboxes = await supabase_svc.get_org_inbox_ids(account_id)
         if valid_inboxes:
-            org = await supabase_svc.get_organization_by_account_id(account_id)
+            org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id or None)
             if org:
                 conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
                     url=org["chatwoot_url"], token=org["chatwoot_token"],
@@ -524,13 +527,13 @@ async def reactivate_ai(conversation_id: int, account_id: int = 0) -> dict[str, 
 
 
 @app.post("/api/conversations/{conversation_id}/takeover", status_code=200)
-async def takeover_conversation(conversation_id: int, account_id: int = 0) -> dict[str, str]:
+async def takeover_conversation(conversation_id: int, account_id: int = 0, inbox_id: int = 0) -> dict[str, str]:
     """Take over a conversation from AI to human (frontend button)."""
     # INBOX GUARD
     if account_id:
         valid_inboxes = await supabase_svc.get_org_inbox_ids(account_id)
         if valid_inboxes:
-            org = await supabase_svc.get_organization_by_account_id(account_id)
+            org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id or None)
             if org:
                 conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
                     url=org["chatwoot_url"], token=org["chatwoot_token"],
@@ -547,9 +550,9 @@ async def takeover_conversation(conversation_id: int, account_id: int = 0) -> di
 
 
 @app.get("/api/dashboard/stats/{account_id}")
-async def dashboard_stats(account_id: int) -> dict[str, Any]:
+async def dashboard_stats(account_id: int, inbox_id: int | None = None) -> dict[str, Any]:
     """Return aggregated dashboard metrics for an organization."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         return {"error": "Organization not found"}
     await check_org_active(org)
@@ -565,7 +568,7 @@ async def chatwoot_conversations_proxy(
     inbox_id: int | None = None,
 ) -> dict[str, Any]:
     """Proxy Chatwoot conversations list with pagination, status and inbox filter."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         return {"error": "Organization not found"}
 
@@ -599,9 +602,10 @@ async def chatwoot_conversations_proxy(
 async def chatwoot_messages_proxy(
     account_id: int,
     conversation_id: int,
+    inbox_id: int | None = None,
 ) -> dict[str, Any]:
     """Proxy Chatwoot messages for a specific conversation."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         return {"error": "Organization not found"}
 
@@ -630,9 +634,10 @@ async def sse_messages(
     account_id: int,
     conversation_id: int,
     request: Request,
+    inbox_id: int | None = None,
 ) -> StreamingResponse:
     """SSE endpoint that streams new messages in real-time."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         return Response(status_code=404, content="Organization not found")
 
@@ -695,12 +700,13 @@ async def chatwoot_send_message_proxy(
     account_id: int,
     conversation_id: int,
     request: Request,
+    inbox_id: int | None = None,
 ) -> dict[str, Any]:
     """Send a message to a Chatwoot conversation and set human takeover."""
     # INBOX GUARD — most critical: prevents sending messages to wrong inbox
     valid_inboxes = await supabase_svc.get_org_inbox_ids(account_id)
     if valid_inboxes:
-        org_guard = await supabase_svc.get_organization_by_account_id(account_id)
+        org_guard = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
         if org_guard:
             conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
                 url=org_guard["chatwoot_url"], token=org_guard["chatwoot_token"],
@@ -719,7 +725,7 @@ async def chatwoot_send_message_proxy(
     if not content:
         return {"error": "Content is required"}
 
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         return {"error": "Organization not found"}
 

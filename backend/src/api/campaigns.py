@@ -193,9 +193,9 @@ async def campaign_stats(campaign_id: str) -> dict[str, Any]:
 
 
 @campaign_router.get("/org/{account_id}")
-async def list_campaigns(account_id: int) -> dict[str, Any]:
+async def list_campaigns(account_id: int, inbox_id: int | None = None) -> dict[str, Any]:
     """List all campaigns for an organization."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 

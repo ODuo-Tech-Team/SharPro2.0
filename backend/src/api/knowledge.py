@@ -42,7 +42,7 @@ async def upload_knowledge_file(
     if org_id:
         org = await supabase_svc.get_organization_by_id(org_id)
     else:
-        org = await supabase_svc.get_organization_by_account_id(account_id)
+        org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=None)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
 
@@ -77,9 +77,9 @@ async def upload_knowledge_file(
 
 
 @knowledge_router.get("/files/{account_id}")
-async def list_knowledge_files(account_id: int) -> dict[str, Any]:
+async def list_knowledge_files(account_id: int, inbox_id: int | None = None) -> dict[str, Any]:
     """List all knowledge files for an organization."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
 

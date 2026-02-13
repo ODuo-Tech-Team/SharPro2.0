@@ -31,9 +31,10 @@ async def get_leads(
     search: str = Query(""),
     status: str = Query(""),
     origin: str = Query(""),
+    inbox_id: int | None = None,
 ) -> dict[str, Any]:
     """Get paginated leads with optional filters."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
 
@@ -53,9 +54,10 @@ async def export_leads_csv(
     account_id: int,
     status: str = Query(""),
     origin: str = Query(""),
+    inbox_id: int | None = None,
 ) -> StreamingResponse:
     """Export leads as CSV file."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
 

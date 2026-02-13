@@ -53,9 +53,9 @@ async def _generate_instance_name(org_name: str) -> str:
 
 
 @instance_router.get("/org/{account_id}")
-async def list_instances(account_id: int) -> dict[str, Any]:
+async def list_instances(account_id: int, inbox_id: int | None = None) -> dict[str, Any]:
     """List all WhatsApp instances for an organization."""
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
@@ -211,7 +211,7 @@ async def connect_chatwoot(instance_id: str, account_id: int = 0, inbox_id: int 
         raise HTTPException(status_code=502, detail=f"n8n webhook failed: {exc}")
 
     # Save inbox_id to the organization for the inbox guard
-    org = await supabase_svc.get_organization_by_account_id(account_id)
+    org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id)
     if org and (not org.get("inbox_id") or int(org.get("inbox_id", 0)) != inbox_id):
         try:
             await supabase_svc.update_organization(org["id"], {"inbox_id": inbox_id})

@@ -275,7 +275,9 @@ async def _process_batch(
             return
 
         # 3. Retrieve organization context
-        org = await supabase_svc.get_organization_by_account_id(account_id)
+        _conv = payload.get("conversation", {})
+        _batch_inbox_id = _conv.get("inbox_id") or payload.get("inbox", {}).get("id") or None
+        org = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=int(_batch_inbox_id) if _batch_inbox_id else None)
         if org is None:
             logger.error(
                 "No organization for account_id=%d. Cannot process conversation %d.",
@@ -663,7 +665,7 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
         # INBOX GUARD (second layer - first layer is in webhook handler)
         # Ensures AI NEVER responds to messages from wrong inboxes.
         # Uses multi-inbox lookup: checks all whatsapp_instances for the org.
-        org_check = await supabase_svc.get_organization_by_account_id(account_id)
+        org_check = await supabase_svc.get_organization_by_account_id(account_id, inbox_id=inbox_id or None)
         valid_inboxes = await supabase_svc.get_org_inbox_ids(account_id)
         if valid_inboxes:
             if not inbox_id:

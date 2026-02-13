@@ -165,7 +165,7 @@ async def get_organization_full(org_id: str) -> Optional[dict[str, Any]]:
 ALLOWED_ORG_UPDATE_FIELDS = {
     "plan_id", "system_prompt", "openai_api_key",
     "chatwoot_account_id", "chatwoot_url", "chatwoot_token", "inbox_id",
-    "ai_handoff_config", "ai_config",
+    "ai_handoff_config", "ai_config", "kommo_welcome_message",
 }
 
 
@@ -300,9 +300,16 @@ async def get_organization_by_id(org_id: str) -> Optional[dict[str, Any]]:
         return None
 
 
-async def get_organization_by_account_id(account_id: int) -> Optional[dict[str, Any]]:
+async def get_organization_by_account_id(
+    account_id: int,
+    inbox_id: Optional[int] = None,
+) -> Optional[dict[str, Any]]:
     """
     Look up an organization row by its ``chatwoot_account_id``.
+
+    When multiple organizations share the same account_id (e.g. different
+    inboxes under one Chatwoot account), pass ``inbox_id`` to disambiguate.
+    The function checks which org owns a WhatsApp instance with that inbox.
 
     Returns ``None`` if no match is found.
     """
@@ -312,15 +319,65 @@ async def get_organization_by_account_id(account_id: int) -> Optional[dict[str, 
             client.table("organizations")
             .select("*")
             .eq("chatwoot_account_id", account_id)
-            .limit(1)
             .execute()
         )
-        if response.data:
-            org = response.data[0]
+        if not response.data:
+            logger.warning("No organization found for chatwoot_account_id=%d.", account_id)
+            return None
+
+        orgs = response.data
+
+        # Single org — no disambiguation needed
+        if len(orgs) == 1:
+            org = orgs[0]
             logger.info("Found organization '%s' for account %d.", org.get("name"), account_id)
             return org
-        logger.warning("No organization found for chatwoot_account_id=%d.", account_id)
-        return None
+
+        # Multiple orgs share this account_id — use inbox_id to pick the right one
+        if inbox_id:
+            for org in orgs:
+                try:
+                    inst_resp = (
+                        client.table("whatsapp_instances")
+                        .select("chatwoot_inbox_id")
+                        .eq("organization_id", org["id"])
+                        .eq("chatwoot_inbox_id", inbox_id)
+                        .limit(1)
+                        .execute()
+                    )
+                    if inst_resp.data:
+                        logger.info(
+                            "Disambiguated org '%s' for account %d via inbox %d.",
+                            org.get("name"), account_id, inbox_id,
+                        )
+                        return org
+                except Exception:
+                    continue
+
+            # Also check legacy org.inbox_id field
+            for org in orgs:
+                if org.get("inbox_id") and int(org["inbox_id"]) == inbox_id:
+                    logger.info(
+                        "Disambiguated org '%s' for account %d via legacy inbox_id %d.",
+                        org.get("name"), account_id, inbox_id,
+                    )
+                    return org
+
+            logger.warning(
+                "Multiple orgs for account %d but inbox %d not matched. Returning first.",
+                account_id, inbox_id,
+            )
+
+        else:
+            logger.warning(
+                "Multiple orgs (%d) share account_id=%d but no inbox_id for disambiguation. Returning first.",
+                len(orgs), account_id,
+            )
+
+        # Fallback: return first match
+        org = orgs[0]
+        logger.info("Found organization '%s' for account %d (fallback).", org.get("name"), account_id)
+        return org
     except Exception:
         logger.exception("Error querying organization for account_id=%d.", account_id)
         raise
@@ -1201,44 +1258,50 @@ async def get_org_instances(org_id: str) -> list[dict[str, Any]]:
 
 async def get_org_inbox_ids(account_id: int) -> list[int]:
     """
-    Get all valid inbox_ids for an organization by looking up its whatsapp_instances.
-    Falls back to org.inbox_id if no instances have chatwoot_inbox_id set.
+    Get all valid inbox_ids for ALL organizations sharing a ``chatwoot_account_id``.
 
-    Returns list of inbox_ids that the org is allowed to interact with.
+    When multiple orgs share the same Chatwoot account (e.g. account_id=1),
+    this aggregates inbox_ids from all of them so the GLOBAL INBOX GUARD
+    accepts events from any valid inbox.
+
+    Returns list of inbox_ids that are allowed to interact with this account.
     """
     try:
         client = _get_client()
-        # First get the org
+        # Get ALL orgs with this account_id (may be more than one)
         org_resp = (
             client.table("organizations")
             .select("id, inbox_id")
             .eq("chatwoot_account_id", account_id)
-            .limit(1)
             .execute()
         )
         if not org_resp.data:
             return []
 
-        org = org_resp.data[0]
-        org_id = org["id"]
+        inbox_ids: list[int] = []
 
-        # Get all inbox_ids from whatsapp_instances
-        inst_resp = (
-            client.table("whatsapp_instances")
-            .select("chatwoot_inbox_id")
-            .eq("organization_id", org_id)
-            .execute()
-        )
+        for org in org_resp.data:
+            org_id = org["id"]
 
-        inbox_ids = [
-            int(row["chatwoot_inbox_id"])
-            for row in (inst_resp.data or [])
-            if row.get("chatwoot_inbox_id")
-        ]
+            # Get inbox_ids from whatsapp_instances for this org
+            inst_resp = (
+                client.table("whatsapp_instances")
+                .select("chatwoot_inbox_id")
+                .eq("organization_id", org_id)
+                .execute()
+            )
 
-        # Fallback: if no instances have inbox_id, use org.inbox_id
-        if not inbox_ids and org.get("inbox_id"):
-            inbox_ids = [int(org["inbox_id"])]
+            for row in (inst_resp.data or []):
+                if row.get("chatwoot_inbox_id"):
+                    iid = int(row["chatwoot_inbox_id"])
+                    if iid not in inbox_ids:
+                        inbox_ids.append(iid)
+
+            # Fallback: legacy org.inbox_id
+            if org.get("inbox_id"):
+                legacy_id = int(org["inbox_id"])
+                if legacy_id not in inbox_ids:
+                    inbox_ids.append(legacy_id)
 
         return inbox_ids
     except Exception:

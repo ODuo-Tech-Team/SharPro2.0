@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS public.organizations (
     name                text        NOT NULL,
 
     -- Chatwoot integration
-    chatwoot_account_id int         UNIQUE,
+    chatwoot_account_id int,
     chatwoot_url        text,
     chatwoot_token      text,
 
