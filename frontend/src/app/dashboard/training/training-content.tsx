@@ -9,8 +9,6 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  Send,
-  Bot,
   Brain,
 } from "lucide-react";
 
@@ -45,14 +43,6 @@ export function TrainingContent({
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Chat simulator state
-  const [question, setQuestion] = useState("");
-  const [simulating, setSimulating] = useState(false);
-  const [simulationResult, setSimulationResult] = useState<{
-    answer: string;
-    context_used: string;
-  } | null>(null);
 
   // Realtime subscription
   useEffect(() => {
@@ -165,40 +155,6 @@ export function TrainingContent({
       alert("Erro ao excluir arquivo");
     } finally {
       setDeletingId(null);
-    }
-  };
-
-  const handleSimulate = async () => {
-    if (!question.trim()) return;
-
-    setSimulating(true);
-    setSimulationResult(null);
-    try {
-      const res = await fetch(
-        `${"/backend-api"}/api/knowledge/simulate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            account_id: accountId,
-            question: question.trim(),
-          }),
-        }
-      );
-      if (!res.ok) throw new Error("Erro na simulação");
-      const data = await res.json();
-      setSimulationResult({
-        answer: data.answer,
-        context_used: data.context_used || "",
-      });
-    } catch (err) {
-      console.error("Simulate error:", err);
-      setSimulationResult({
-        answer: "Erro ao simular. Verifique a conexão com o servidor.",
-        context_used: "",
-      });
-    } finally {
-      setSimulating(false);
     }
   };
 
@@ -332,54 +288,6 @@ export function TrainingContent({
         )}
       </div>
 
-      {/* Chat Simulator */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-white">
-          <Bot className="h-5 w-5 text-blue-400" />
-          Simulador de Chat
-        </h2>
-        <p className="mb-4 text-sm text-slate-400">
-          Teste como a IA responde usando a base de conhecimento.
-        </p>
-
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !simulating) handleSimulate();
-            }}
-            placeholder="Faça uma pergunta para testar..."
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
-          />
-          <button
-            type="button"
-            onClick={handleSimulate}
-            disabled={simulating || !question.trim()}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
-          >
-            {simulating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </button>
-        </div>
-
-        {simulationResult && (
-          <div className="mt-4">
-            <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
-              <p className="mb-1 text-xs font-medium text-blue-400">
-                Resposta da IA
-              </p>
-              <p className="whitespace-pre-wrap text-sm text-white">
-                {simulationResult.answer}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
