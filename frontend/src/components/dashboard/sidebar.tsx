@@ -94,13 +94,13 @@ export function Sidebar({ isSuperAdmin }: SidebarProps) {
   return (
     <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-shark-dark">
       {/* Logo / Brand */}
-      <div className="flex h-16 items-center justify-center border-b border-white/10 px-3">
+      <div className="flex items-center justify-center border-b border-white/10 py-4 px-4">
         <Image
           src="/LogoShark.png"
           alt="SharkPro"
           width={240}
-          height={64}
-          className="h-full w-full object-contain"
+          height={150}
+          className="w-full object-contain mix-blend-lighten"
         />
       </div>
 
