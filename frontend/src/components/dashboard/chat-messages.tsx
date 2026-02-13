@@ -231,52 +231,54 @@ export function ChatMessages({
         </div>
       ) : (
         <ScrollArea ref={scrollRef} className="flex-1 px-4 py-3">
-          {groupedMessages.map((group) => (
-            <div key={group.date}>
-              {/* Date separator */}
-              <div className="my-3 flex items-center gap-3">
-                <div className="flex-1 border-t" />
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  {group.date}
-                </span>
-                <div className="flex-1 border-t" />
-              </div>
+          <div className="flex min-h-full flex-col justify-end">
+            {groupedMessages.map((group) => (
+              <div key={group.date}>
+                {/* Date separator */}
+                <div className="my-3 flex items-center gap-3">
+                  <div className="flex-1 border-t" />
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    {group.date}
+                  </span>
+                  <div className="flex-1 border-t" />
+                </div>
 
-              {group.msgs
-                .filter((msg) => !msg.private && msg.content)
-                .map((msg) => {
-                  const isOutgoing = msg.message_type === 1;
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`mb-2 flex ${isOutgoing ? "justify-end" : "justify-start"}`}
-                    >
+                {group.msgs
+                  .filter((msg) => !msg.private && msg.content)
+                  .map((msg) => {
+                    const isOutgoing = msg.message_type === 1;
+                    return (
                       <div
-                        className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                          isOutgoing
-                            ? "bg-shark-blue text-white rounded-br-md"
-                            : "bg-muted rounded-bl-md"
-                        }`}
+                        key={msg.id}
+                        className={`mb-2 flex ${isOutgoing ? "justify-end" : "justify-start"}`}
                       >
-                        {isOutgoing && msg.sender?.type === "contact" ? null : isOutgoing && (
-                          <p className="mb-0.5 text-[10px] font-medium opacity-70">
-                            {msg.sender?.name || "Agente"}
-                          </p>
-                        )}
-                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
-                        <p
-                          className={`mt-1 text-[10px] ${
-                            isOutgoing ? "text-white/60" : "text-muted-foreground"
-                          } text-right`}
+                        <div
+                          className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
+                            isOutgoing
+                              ? "bg-shark-blue text-white rounded-br-md"
+                              : "bg-muted rounded-bl-md"
+                          }`}
                         >
-                          {formatMessageTime(msg.created_at)}
-                        </p>
+                          {isOutgoing && msg.sender?.type === "contact" ? null : isOutgoing && (
+                            <p className="mb-0.5 text-[10px] font-medium opacity-70">
+                              {msg.sender?.name || "Agente"}
+                            </p>
+                          )}
+                          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                          <p
+                            className={`mt-1 text-[10px] ${
+                              isOutgoing ? "text-white/60" : "text-muted-foreground"
+                            } text-right`}
+                          >
+                            {formatMessageTime(msg.created_at)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-            </div>
-          ))}
+                    );
+                  })}
+              </div>
+            ))}
+          </div>
         </ScrollArea>
       )}
 
