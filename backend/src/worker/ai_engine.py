@@ -181,6 +181,9 @@ class ConversationContext:
     # Will be set to True if transfer_to_human_specialist is called
     transferred: bool = False
 
+    # Simulation mode: tools return mock responses, no real side effects
+    simulate: bool = False
+
 
 # ---------------------------------------------------------------------------
 # Tool execution
@@ -196,6 +199,19 @@ async def _execute_tool_call(
 
     Side effects (API calls, DB writes) happen here.
     """
+
+    # ---------------------------------------------------------------
+    # SIMULATION GUARD: mock tool results, no real side effects
+    # ---------------------------------------------------------------
+    if ctx.simulate:
+        if name == "transfer_to_human_specialist":
+            ctx.transferred = True
+            return f"[SIMULACAO] Transferencia executada. Resumo: {arguments.get('summary', '')}"
+        if name == "register_lead":
+            return f"[SIMULACAO] Lead '{arguments.get('name', '')}' ({arguments.get('phone', '')}) registrado."
+        if name == "handle_customer_inactivity":
+            return "[SIMULACAO] Inatividade processada."
+        return f"[SIMULACAO] Tool desconhecida: {name}"
 
     # ---------------------------------------------------------------
     # Tool 1: transfer_to_human_specialist

@@ -693,6 +693,15 @@ async def _on_message(message: AbstractIncomingMessage) -> None:
             )
             return
 
+        # --- GROUP GUARD: never respond to group conversations (safety net) ---
+        conversation_data = payload.get("conversation", {})
+        additional_attrs = conversation_data.get("additional_attributes") or {}
+        group_source_id = (conversation_data.get("contact_inbox") or {}).get("source_id", "")
+
+        if additional_attrs.get("type") == "group" or "@g.us" in group_source_id:
+            logger.info("Group conversation detected in worker (conversation=%d). Skipping.", conversation_id)
+            return
+
         # --- Check if this is a campaign lead replying ---
         sender_info = payload.get("sender", {})
         sender_phone = sender_info.get("phone_number") or ""

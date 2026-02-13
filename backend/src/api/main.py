@@ -36,6 +36,7 @@ from src.api.admin import admin_router
 from src.api.knowledge import knowledge_router
 from src.api.leads import leads_router
 from src.api.followup import followup_router
+from src.api.simulator import simulator_router
 from src.worker.ai_engine import generate_handoff_summary
 
 # ---------------------------------------------------------------------------
@@ -96,6 +97,7 @@ app.include_router(admin_router)
 app.include_router(knowledge_router)
 app.include_router(leads_router)
 app.include_router(followup_router)
+app.include_router(simulator_router)
 
 
 # ---------------------------------------------------------------------------
@@ -383,6 +385,24 @@ async def chatwoot_webhook(request: Request) -> Response:
     if not is_incoming:
         logger.info("Ignoring non-incoming message (message_type=%s, event=%s).", message_type, event)
         return Response(content='{"detail":"non-incoming ignored"}', status_code=200, media_type="application/json")
+
+    # ------------------------------------------------------------------
+    # GROUP GUARD: never respond to group conversations
+    # ------------------------------------------------------------------
+    conversation_data = body.get("conversation", {})
+    additional_attrs = conversation_data.get("additional_attributes") or {}
+    group_source_id = (conversation_data.get("contact_inbox") or {}).get("source_id", "")
+
+    if additional_attrs.get("type") == "group" or "@g.us" in group_source_id:
+        logger.info(
+            "Group conversation detected (conversation=%s). Ignoring.",
+            conversation_id,
+        )
+        return Response(
+            content='{"detail":"group conversation ignored"}',
+            status_code=200,
+            media_type="application/json",
+        )
 
     if not account_id or not conversation_id:
         logger.warning(

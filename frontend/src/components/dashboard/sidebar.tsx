@@ -15,6 +15,7 @@ import {
   Brain,
   Sparkles,
   TrendingUp,
+  FlaskConical,
 } from "lucide-react";
 
 interface NavItem {
@@ -49,6 +50,11 @@ const navigation: NavItem[] = [
     name: "Personalidade",
     href: "/dashboard/personality",
     icon: Sparkles,
+  },
+  {
+    name: "Simulador",
+    href: "/dashboard/simulator",
+    icon: FlaskConical,
   },
   {
     name: "Leads",

@@ -183,3 +183,26 @@ class KnowledgeSimulate(BaseModel):
 
     account_id: int
     question: str
+
+
+# ---------------------------------------------------------------------------
+# Chat Simulator schemas
+# ---------------------------------------------------------------------------
+
+class ChatSimulateMessage(BaseModel):
+    """A single message in the simulation conversation history."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    role: str
+    content: str
+
+
+class ChatSimulateRequest(BaseModel):
+    """Payload for the full chat simulator endpoint."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    account_id: int
+    message: str
+    history: list[ChatSimulateMessage] = []
