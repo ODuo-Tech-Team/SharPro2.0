@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { FollowupContent } from "./followup-content";
-import { MOCK_LEADS_ADMIN, MOCK_LEADS_CLIENT } from "@/lib/mock-leads";
+import { MOCK_LEADS_CLIENT } from "@/lib/mock-leads";
 
 interface Lead {
   id: string;
@@ -49,11 +49,13 @@ async function getFollowupData(): Promise<{
     .order("last_contact_at", { ascending: false });
 
   const realLeads = (leads ?? []) as Lead[];
-  const mockFallback = profile.is_superadmin === true ? MOCK_LEADS_ADMIN : MOCK_LEADS_CLIENT;
+  const isSuperAdmin = profile.is_superadmin === true;
+  // Super admin: always show real data (no mocks). Client: use mock fallback for demo.
+  const finalLeads = realLeads.length > 0 ? realLeads : (isSuperAdmin ? [] : MOCK_LEADS_CLIENT as Lead[]);
   return {
     orgId: profile.organization_id,
-    isSuperAdmin: profile.is_superadmin === true,
-    leads: realLeads.length > 0 ? realLeads : mockFallback as Lead[],
+    isSuperAdmin,
+    leads: finalLeads,
   };
 }
 

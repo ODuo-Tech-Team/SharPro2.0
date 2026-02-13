@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { LeadsTable } from "./leads-table";
-import { MOCK_LEADS_ADMIN, MOCK_LEADS_CLIENT } from "@/lib/mock-leads";
+import { MOCK_LEADS_CLIENT } from "@/lib/mock-leads";
 
 interface Lead {
   id: string;
@@ -43,8 +43,10 @@ async function getLeadsData(): Promise<{ orgId: string; leads: Lead[] } | null> 
     .order("created_at", { ascending: false });
 
   const realLeads = (leads ?? []) as Lead[];
-  const mockFallback = profile.is_superadmin === true ? MOCK_LEADS_ADMIN : MOCK_LEADS_CLIENT;
-  return { orgId: profile.organization_id, leads: realLeads.length > 0 ? realLeads : mockFallback as Lead[] };
+  const isSuperAdmin = profile.is_superadmin === true;
+  // Super admin: always show real data (no mocks). Client: use mock fallback for demo.
+  const finalLeads = realLeads.length > 0 ? realLeads : (isSuperAdmin ? [] : MOCK_LEADS_CLIENT as Lead[]);
+  return { orgId: profile.organization_id, leads: finalLeads };
 }
 
 export default async function LeadsPage() {
