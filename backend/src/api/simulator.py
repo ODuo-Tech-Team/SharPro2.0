@@ -62,7 +62,7 @@ async def simulate_chat(payload: ChatSimulateRequest) -> dict[str, Any]:
 
     org_id = org["id"]
     system_prompt = org.get("system_prompt") or (
-        "Voce e um assistente de vendas. Seja educado e prestativo."
+        "Você é um assistente de vendas. Seja educado e prestativo."
     )
     ai_config = org.get("ai_config") or {}
 

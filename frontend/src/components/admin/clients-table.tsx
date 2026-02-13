@@ -125,7 +125,7 @@ export function ClientsTable({ organizations, plans, accessToken }: ClientsTable
         localStorage.setItem("impersonating_org", orgId);
         window.location.href = data.magic_link;
       } else {
-        throw new Error("Link de acesso invalido");
+        throw new Error("Link de acesso inválido");
       }
     } catch (err) {
       console.error("Impersonate error:", err);
@@ -154,7 +154,7 @@ export function ClientsTable({ organizations, plans, accessToken }: ClientsTable
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por empresa, usuario ou email..."
+            placeholder="Buscar por empresa, usuário ou email..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -175,12 +175,12 @@ export function ClientsTable({ organizations, plans, accessToken }: ClientsTable
             <TableRow>
               <TableHead className="w-8"></TableHead>
               <TableHead>Empresa</TableHead>
-              <TableHead>Usuario / Email</TableHead>
+              <TableHead>Usuário / Email</TableHead>
               <TableHead>Plano</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>WhatsApp</TableHead>
               <TableHead>Cadastro</TableHead>
-              <TableHead className="text-right">Acoes</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -256,7 +256,7 @@ export function ClientsTable({ organizations, plans, accessToken }: ClientsTable
                         </Badge>
                         {(org.instance_count ?? 0) > 0 && (
                           <p className="text-[10px] text-muted-foreground">
-                            {org.instance_count} {org.instance_count === 1 ? "instancia" : "instancias"}
+                            {org.instance_count} {org.instance_count === 1 ? "instância" : "instâncias"}
                           </p>
                         )}
                       </div>
@@ -317,7 +317,7 @@ export function ClientsTable({ organizations, plans, accessToken }: ClientsTable
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {/* Informacoes Basicas */}
               <InfoItem icon={Building2} label="Empresa" value={org.name} />
-              <InfoItem icon={User} label="Usuario" value={org.owner?.full_name || "-"} />
+              <InfoItem icon={User} label="Usuário" value={org.owner?.full_name || "-"} />
               <InfoItem icon={Mail} label="Email" value={org.owner?.email || "-"} />
               <InfoItem icon={Calendar} label="Data de Cadastro" value={formatDate(org.created_at)} />
 
@@ -359,7 +359,7 @@ export function ClientsTable({ organizations, plans, accessToken }: ClientsTable
               />
               <InfoItem
                 icon={Smartphone}
-                label="Instancias WhatsApp"
+                label="Instâncias WhatsApp"
                 value={`${org.instance_count || 0}`}
               />
 
@@ -367,7 +367,7 @@ export function ClientsTable({ organizations, plans, accessToken }: ClientsTable
               <InfoItem
                 icon={Bot}
                 label="System Prompt"
-                value={org.system_prompt ? "Configurado" : "Nao configurado"}
+                value={org.system_prompt ? "Configurado" : "Não configurado"}
               />
               <InfoItem
                 icon={Key}

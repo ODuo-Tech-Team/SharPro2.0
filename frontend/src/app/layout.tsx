@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "SharkPro - Atendimento ao Cliente com IA",
   description:
-    "Plataforma SaaS de automacao inteligente para WhatsApp. Atendimento ao cliente com IA, gestao de leads e metricas de vendas.",
+    "Plataforma SaaS de automação inteligente para WhatsApp. Atendimento ao cliente com IA, gestão de leads e métricas de vendas.",
   icons: {
     icon: "/favicon.ico",
   },

@@ -51,7 +51,7 @@ const STATUS_MAP: Record<
 };
 
 const ORIGIN_MAP: Record<string, string> = {
-  organic: "Organico",
+  organic: "Orgânico",
   campaign: "Campanha",
   whatsapp: "WhatsApp",
   manual: "Manual",
@@ -308,7 +308,7 @@ export function LeadsTable({ orgId, initialLeads, accountId }: LeadsTableProps) 
             {totalPages > 1 && (
               <div className="mt-4 flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Pagina {currentPage} de {totalPages}
+                  Página {currentPage} de {totalPages}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -330,7 +330,7 @@ export function LeadsTable({ orgId, initialLeads, accountId }: LeadsTableProps) 
                     }
                     disabled={currentPage === totalPages}
                   >
-                    Proximo
+                    Próximo
                     <ChevronRight className="ml-1 h-4 w-4" />
                   </Button>
                 </div>

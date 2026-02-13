@@ -30,7 +30,7 @@ async def check_org_active(org: dict[str, Any]) -> None:
             status_code=403,
             detail={
                 "error": "organization_blocked",
-                "message": "Esta organizacao esta bloqueada. Entre em contato com o suporte.",
+                "message": "Esta organização está bloqueada. Entre em contato com o suporte.",
             },
         )
 

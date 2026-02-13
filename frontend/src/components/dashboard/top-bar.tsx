@@ -28,7 +28,7 @@ export function TopBar({ userEmail }: TopBarProps) {
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <User className="h-4 w-4" />
-          <span className="hidden sm:inline">{userEmail ?? "Usuario"}</span>
+          <span className="hidden sm:inline">{userEmail ?? "Usuário"}</span>
         </div>
         <Button
           variant="ghost"
