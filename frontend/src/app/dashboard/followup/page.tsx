@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { FollowupContent } from "./followup-content";
+import { MOCK_LEADS } from "@/lib/mock-leads";
 
 interface Lead {
   id: string;
@@ -47,10 +48,11 @@ async function getFollowupData(): Promise<{
     .eq("organization_id", profile.organization_id)
     .order("last_contact_at", { ascending: false });
 
+  const realLeads = (leads ?? []) as Lead[];
   return {
     orgId: profile.organization_id,
     isSuperAdmin: profile.is_superadmin === true,
-    leads: (leads ?? []) as Lead[],
+    leads: realLeads.length > 0 ? realLeads : MOCK_LEADS as Lead[],
   };
 }
 

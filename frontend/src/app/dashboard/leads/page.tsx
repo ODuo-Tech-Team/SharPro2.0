@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { LeadsTable } from "./leads-table";
+import { MOCK_LEADS } from "@/lib/mock-leads";
 
 interface Lead {
   id: string;
@@ -41,7 +42,8 @@ async function getLeadsData(): Promise<{ orgId: string; leads: Lead[] } | null> 
     .eq("organization_id", profile.organization_id)
     .order("created_at", { ascending: false });
 
-  return { orgId: profile.organization_id, leads: (leads ?? []) as Lead[] };
+  const realLeads = (leads ?? []) as Lead[];
+  return { orgId: profile.organization_id, leads: realLeads.length > 0 ? realLeads : MOCK_LEADS as Lead[] };
 }
 
 export default async function LeadsPage() {
