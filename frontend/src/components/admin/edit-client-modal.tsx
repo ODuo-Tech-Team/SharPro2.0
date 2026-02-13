@@ -228,7 +228,7 @@ export function EditClientModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Editar: {organization.name}</DialogTitle>
         </DialogHeader>
@@ -238,20 +238,20 @@ export function EditClientModal({
         )}
 
         <Tabs defaultValue="subscription">
-          <TabsList className="w-full">
-            <TabsTrigger value="subscription" className="flex-1">
+          <TabsList className="w-full flex-wrap h-auto gap-1">
+            <TabsTrigger value="subscription" className="text-xs">
               Assinatura & Acesso
             </TabsTrigger>
-            <TabsTrigger value="ai" className="flex-1">
+            <TabsTrigger value="ai" className="text-xs">
               Inteligência (IA)
             </TabsTrigger>
-            <TabsTrigger value="integration" className="flex-1">
+            <TabsTrigger value="integration" className="text-xs">
               Integração Técnica
             </TabsTrigger>
-            <TabsTrigger value="instances" className="flex-1">
+            <TabsTrigger value="instances" className="text-xs">
               Instâncias WhatsApp
             </TabsTrigger>
-            <TabsTrigger value="handoff" className="flex-1">
+            <TabsTrigger value="handoff" className="text-xs">
               Transbordo
             </TabsTrigger>
           </TabsList>
