@@ -34,12 +34,14 @@ interface SimulatorContentProps {
   orgId: string;
   accountId: number;
   orgName: string;
+  embedded?: boolean;
 }
 
 export function SimulatorContent({
   orgId,
   accountId,
   orgName,
+  embedded = false,
 }: SimulatorContentProps) {
   const [messages, setMessages] = useState<SimMessage[]>([]);
   const [input, setInput] = useState("");
@@ -158,50 +160,52 @@ export function SimulatorContent({
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
+    <div className={`flex flex-col ${embedded ? "h-full" : "h-[calc(100vh-4rem)]"}`}>
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-shark-blue/15">
-            <FlaskConical className="h-5 w-5 text-shark-blue" />
+      {!embedded && (
+        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-shark-blue/15">
+              <FlaskConical className="h-5 w-5 text-shark-blue" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-white">
+                Simulador de Chat
+              </h1>
+              <p className="text-xs text-slate-400">
+                Teste sua IA antes de colocar em producao
+              </p>
+            </div>
+            <Badge variant="outline" className="ml-2 text-xs">
+              {orgName}
+            </Badge>
           </div>
-          <div>
-            <h1 className="text-lg font-semibold text-white">
-              Simulador de Chat
-            </h1>
-            <p className="text-xs text-slate-400">
-              Teste sua IA antes de colocar em producao
-            </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDebug(!showDebug)}
+              className="text-xs"
+            >
+              {showDebug ? (
+                <ChevronUp className="mr-1 h-3 w-3" />
+              ) : (
+                <ChevronDown className="mr-1 h-3 w-3" />
+              )}
+              Debug
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClear}
+              disabled={messages.length === 0 && !loading}
+            >
+              <Trash2 className="mr-1 h-3 w-3" />
+              Limpar
+            </Button>
           </div>
-          <Badge variant="outline" className="ml-2 text-xs">
-            {orgName}
-          </Badge>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-xs"
-          >
-            {showDebug ? (
-              <ChevronUp className="mr-1 h-3 w-3" />
-            ) : (
-              <ChevronDown className="mr-1 h-3 w-3" />
-            )}
-            Debug
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleClear}
-            disabled={messages.length === 0 && !loading}
-          >
-            <Trash2 className="mr-1 h-3 w-3" />
-            Limpar
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* Messages Area */}
       <div className="flex-1 overflow-hidden">
