@@ -78,7 +78,7 @@ export function BotContent({
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="flex-1 overflow-y-auto min-h-0 scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {activeTab === "personality" && (
           <div className="p-6">
             <PersonalityForm orgId={orgId} currentConfig={aiConfig} />
