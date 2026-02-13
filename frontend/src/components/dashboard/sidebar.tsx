@@ -12,10 +12,8 @@ import {
   Megaphone,
   Smartphone,
   Building2,
-  Brain,
-  Sparkles,
+  Bot,
   TrendingUp,
-  FlaskConical,
 } from "lucide-react";
 
 interface NavItem {
@@ -32,6 +30,11 @@ const navigation: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
+    name: "Follow-up",
+    href: "/dashboard/followup",
+    icon: TrendingUp,
+  },
+  {
     name: "Conversas",
     href: "/dashboard/conversations",
     icon: MessageSquare,
@@ -42,19 +45,9 @@ const navigation: NavItem[] = [
     icon: Smartphone,
   },
   {
-    name: "Treinar Robô",
-    href: "/dashboard/training",
-    icon: Brain,
-  },
-  {
-    name: "Personalidade",
-    href: "/dashboard/personality",
-    icon: Sparkles,
-  },
-  {
-    name: "Simulador",
-    href: "/dashboard/simulator",
-    icon: FlaskConical,
+    name: "Campanhas",
+    href: "/dashboard/campaigns",
+    icon: Megaphone,
   },
   {
     name: "Leads",
@@ -62,25 +55,20 @@ const navigation: NavItem[] = [
     icon: Users,
   },
   {
-    name: "Follow-up",
-    href: "/dashboard/followup",
-    icon: TrendingUp,
+    name: "Bot",
+    href: "/dashboard/bot",
+    icon: Bot,
   },
   {
-    name: "Campanhas",
-    href: "/dashboard/campaigns",
-    icon: Megaphone,
+    name: "Configurações",
+    href: "/dashboard/settings",
+    icon: Settings,
   },
   {
     name: "Gerenciar Empresas",
     href: "/dashboard/admin",
     icon: Building2,
     superAdminOnly: true,
-  },
-  {
-    name: "Configurações",
-    href: "/dashboard/settings",
-    icon: Settings,
   },
 ];
 
