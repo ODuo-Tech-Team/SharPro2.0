@@ -27,7 +27,7 @@ async function getConversationsData() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("organization_id")
+    .select("organization_id, role")
     .eq("id", user.id)
     .single();
 
@@ -35,7 +35,7 @@ async function getConversationsData() {
 
   const orgId = profile.organization_id;
 
-  const [conversationsResult, orgResult, instancesResult] = await Promise.all([
+  const [conversationsResult, orgResult, instancesResult, userInstancesResult] = await Promise.all([
     supabase
       .from("conversations")
       .select("id, conversation_id, ai_status")
@@ -50,11 +50,25 @@ async function getConversationsData() {
       .select("id, instance_name, display_name, phone_number, status, chatwoot_inbox_id")
       .eq("organization_id", orgId)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("user_instances")
+      .select("instance_id, whatsapp_instances!inner(chatwoot_inbox_id)")
+      .eq("user_id", user.id),
   ]);
 
   const conversations = conversationsResult.data ?? [];
   const accountId = orgResult.data?.chatwoot_account_id ?? null;
   const instances: WhatsAppInstance[] = instancesResult.data ?? [];
+
+  // Compute allowedInboxIds: if user is NOT admin AND has instance assignments, filter
+  let allowedInboxIds: number[] | null = null;
+  const userInstances = userInstancesResult.data ?? [];
+  if (profile.role !== "admin" && userInstances.length > 0) {
+    allowedInboxIds = userInstances
+      .map((ui: any) => ui.whatsapp_instances?.chatwoot_inbox_id)
+      .filter((id: any): id is number => id != null)
+      .map(Number);
+  }
 
   // Build ai_status map keyed by conversation_id
   const aiStatusMap: Record<number, string> = {};
@@ -62,7 +76,7 @@ async function getConversationsData() {
     aiStatusMap[c.conversation_id] = c.ai_status;
   });
 
-  return { orgId, accountId, aiStatusMap, instances };
+  return { orgId, accountId, aiStatusMap, instances, allowedInboxIds };
 }
 
 export default async function ConversationsPage() {
@@ -88,6 +102,7 @@ export default async function ConversationsPage() {
       accountId={data.accountId}
       aiStatusMap={data.aiStatusMap}
       instances={data.instances}
+      allowedInboxIds={data.allowedInboxIds}
     />
   );
 }

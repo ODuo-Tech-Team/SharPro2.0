@@ -46,6 +46,7 @@ interface ChatSidebarProps {
   instances: WhatsAppInstance[];
   selectedInboxId: number | null;
   onInboxChange: (inboxId: number | null) => void;
+  allowedInboxIds?: number[] | null;
 }
 
 const STATUS_FILTERS = [
@@ -71,6 +72,7 @@ export function ChatSidebar({
   instances,
   selectedInboxId,
   onInboxChange,
+  allowedInboxIds,
 }: ChatSidebarProps) {
   const [conversations, setConversations] = useState<ChatwootConversation[]>([]);
   const [loading, setLoading] = useState(false);
@@ -162,9 +164,10 @@ export function ChatSidebar({
             <select
               value={selectedInboxId ?? ""}
               onChange={(e) => onInboxChange(e.target.value ? Number(e.target.value) : null)}
-              className="h-8 w-full appearance-none rounded-md border border-input bg-background pl-8 pr-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+              disabled={allowedInboxIds != null && allowedInboxIds.length <= 1}
+              className="h-8 w-full appearance-none rounded-md border border-input bg-background pl-8 pr-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <option value="">Todos os numeros</option>
+              {!allowedInboxIds && <option value="">Todos os números</option>}
               {instances.map((inst) => (
                 <option key={inst.id} value={inst.chatwoot_inbox_id ?? ""}>
                   {inst.display_name || inst.instance_name}

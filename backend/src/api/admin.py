@@ -254,3 +254,37 @@ async def admin_delete_instance(org_id: str, instance_id: str) -> dict[str, Any]
     )
 
     return {"status": "ok", "detail": "Instance deleted"}
+
+
+# ---------------------------------------------------------------------------
+# User Management (Admin-only)
+# ---------------------------------------------------------------------------
+
+@admin_router.get("/organizations/{org_id}/users")
+async def admin_list_users(org_id: str) -> dict[str, Any]:
+    """List all users for a specific organization."""
+    org = await supabase_svc.get_organization_by_id(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    users = await supabase_svc.get_org_users(org_id)
+    return {"status": "ok", "users": users}
+
+
+class UserInstancesUpdate(BaseModel):
+    instance_ids: list[str]
+
+
+@admin_router.patch("/organizations/{org_id}/users/{user_id}/instances")
+async def admin_update_user_instances(
+    org_id: str,
+    user_id: str,
+    payload: UserInstancesUpdate,
+) -> dict[str, Any]:
+    """Update the WhatsApp instance assignments for a user."""
+    org = await supabase_svc.get_organization_by_id(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    await supabase_svc.set_user_instances(user_id, payload.instance_ids)
+    return {"status": "ok", "detail": "User instances updated"}

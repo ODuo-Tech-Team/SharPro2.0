@@ -521,6 +521,29 @@ async def reactivate_ai(conversation_id: int, account_id: int = 0) -> dict[str, 
     return {"detail": "ai reactivated", "conversation_id": str(conversation_id)}
 
 
+@app.post("/api/conversations/{conversation_id}/takeover", status_code=200)
+async def takeover_conversation(conversation_id: int, account_id: int = 0) -> dict[str, str]:
+    """Take over a conversation from AI to human (frontend button)."""
+    # INBOX GUARD
+    if account_id:
+        valid_inboxes = await supabase_svc.get_org_inbox_ids(account_id)
+        if valid_inboxes:
+            org = await supabase_svc.get_organization_by_account_id(account_id)
+            if org:
+                conv_inbox = await chatwoot_svc.get_conversation_inbox_id(
+                    url=org["chatwoot_url"], token=org["chatwoot_token"],
+                    account_id=account_id, conversation_id=conversation_id,
+                )
+                if conv_inbox and conv_inbox not in valid_inboxes:
+                    logger.warning("TAKEOVER BLOCKED: conversation %d in inbox %d, valid inboxes: %s.", conversation_id, conv_inbox, valid_inboxes)
+                    return {"error": "inbox mismatch"}
+
+    logger.info("Human takeover for conversation %d via API.", conversation_id)
+    await redis_svc.set_human_takeover(conversation_id)
+    await supabase_svc.set_conversation_ai_status(conversation_id, "paused", status="human")
+    return {"detail": "human takeover set", "conversation_id": str(conversation_id)}
+
+
 @app.get("/api/dashboard/stats/{account_id}")
 async def dashboard_stats(account_id: int) -> dict[str, Any]:
     """Return aggregated dashboard metrics for an organization."""

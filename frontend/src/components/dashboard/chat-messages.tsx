@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatInput } from "@/components/dashboard/chat-input";
-import { Loader2, Bot, UserCheck, RotateCcw, MessageSquare } from "lucide-react";
+import { Loader2, Bot, UserCheck, RotateCcw, MessageSquare, Hand } from "lucide-react";
 
 interface Message {
   id: number;
@@ -26,6 +26,7 @@ interface ChatMessagesProps {
   conversationId: number | null;
   contactName: string;
   aiStatus?: string;
+  onAiStatusChange?: (convId: number, newStatus: string) => void;
 }
 
 function sanitizeMessageContent(content: string): string {
@@ -62,10 +63,12 @@ export function ChatMessages({
   conversationId,
   contactName,
   aiStatus,
+  onAiStatusChange,
 }: ChatMessagesProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [reactivating, setReactivating] = useState(false);
+  const [takingOver, setTakingOver] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isFirstLoad = useRef(true);
 
@@ -154,10 +157,28 @@ export function ChatMessages({
         { method: "POST" }
       );
       if (!res.ok) throw new Error("Failed to reactivate");
+      onAiStatusChange?.(conversationId, "active");
     } catch (err) {
       console.error("Reactivate error:", err);
     } finally {
       setReactivating(false);
+    }
+  };
+
+  const handleTakeover = async () => {
+    if (!conversationId || takingOver) return;
+    setTakingOver(true);
+    try {
+      const res = await fetch(
+        `${"/backend-api"}/api/conversations/${conversationId}/takeover`,
+        { method: "POST" }
+      );
+      if (!res.ok) throw new Error("Failed to takeover");
+      onAiStatusChange?.(conversationId, "paused");
+    } catch (err) {
+      console.error("Takeover error:", err);
+    } finally {
+      setTakingOver(false);
     }
   };
 
@@ -211,22 +232,40 @@ export function ChatMessages({
             </div>
           </div>
         </div>
-        {aiStatus === "paused" && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleReactivate}
-            disabled={reactivating}
-            className="gap-1.5 text-xs"
-          >
-            {reactivating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RotateCcw className="h-3.5 w-3.5" />
-            )}
-            Reativar IA
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {aiStatus === "active" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleTakeover}
+              disabled={takingOver}
+              className="gap-1.5 text-xs border-amber-500/30 text-amber-600 hover:bg-amber-500/10"
+            >
+              {takingOver ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Hand className="h-3.5 w-3.5" />
+              )}
+              Assumir Conversa
+            </Button>
+          )}
+          {aiStatus === "paused" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleReactivate}
+              disabled={reactivating}
+              className="gap-1.5 text-xs"
+            >
+              {reactivating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              Reativar IA
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Messages area */}

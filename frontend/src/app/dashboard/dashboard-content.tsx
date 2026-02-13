@@ -151,10 +151,14 @@ export function DashboardContent({
     totalLeads,
     leadsTrend,
     totalSalesVolume,
+    salesCount,
     aiEfficiency,
     activeCount,
+    conversationsActiveCount,
+    conversationsPausedCount,
     chartData,
     recentSales,
+    recentConversations,
   });
 
   return (
@@ -206,7 +210,7 @@ export function DashboardContent({
             </div>
           </div>
           <p className="mt-3 text-2xl font-bold text-white">
-            {isSuperAdmin ? salesCount : formatCurrency(live.totalSalesVolume)}
+            {isSuperAdmin ? live.salesCount : formatCurrency(live.totalSalesVolume)}
           </p>
           <p className="mt-1 text-xs text-emerald-400">
             {isSuperAdmin
@@ -225,7 +229,7 @@ export function DashboardContent({
               <TrendingUp className="h-5 w-5 text-emerald-400" />
             </div>
           </div>
-          <p className="mt-3 text-2xl font-bold text-white">{salesCount}</p>
+          <p className="mt-3 text-2xl font-bold text-white">{live.salesCount}</p>
           <p className="mt-1 text-xs text-slate-500">Total registrado</p>
         </div>
 
@@ -258,14 +262,14 @@ export function DashboardContent({
             </div>
           </div>
           <p className="mt-3 text-2xl font-bold text-white">
-            {conversationsActiveCount}
+            {live.conversationsActiveCount}
           </p>
           <div className="mt-1 flex items-center gap-1.5">
-            {conversationsActiveCount > 0 && (
+            {live.conversationsActiveCount > 0 && (
               <Activity className="h-3 w-3 animate-pulse text-amber-400" />
             )}
             <span className="text-xs text-amber-400">
-              {conversationsActiveCount > 0 ? "Ativos agora" : "Nenhum ativo"}
+              {live.conversationsActiveCount > 0 ? "Ativos agora" : "Nenhum ativo"}
             </span>
           </div>
         </div>
@@ -331,7 +335,7 @@ export function DashboardContent({
           </a>
         </div>
 
-        {recentConversations.length > 0 ? (
+        {live.recentConversations.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -354,7 +358,7 @@ export function DashboardContent({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
-                {recentConversations.map((conv: RecentConversation) => {
+                {live.recentConversations.map((conv: RecentConversation) => {
                   const badge = getStatusBadge(conv.ai_status);
                   const BadgeIcon = badge.Icon;
                   return (

@@ -9,7 +9,16 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2 } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { AdminInstances } from "@/components/admin/admin-instances";
 
 interface Organization {
@@ -85,6 +94,80 @@ export function EditClientModal({
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  // Users tab state
+  interface OrgUser {
+    id: string;
+    email: string;
+    full_name: string | null;
+    role: string;
+    created_at: string;
+    instance_ids: string[];
+  }
+  const [users, setUsers] = useState<OrgUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+
+  // Instances for user assignment
+  interface InstanceOption {
+    id: string;
+    display_name: string;
+    instance_name: string;
+    phone_number: string | null;
+  }
+  const [orgInstances, setOrgInstances] = useState<InstanceOption[]>([]);
+
+  const fetchUsers = async () => {
+    if (usersLoaded) return;
+    setLoadingUsers(true);
+    try {
+      const [usersRes, instancesRes] = await Promise.all([
+        fetch(`${apiUrl}/api/admin/organizations/${organization.id}/users`, { headers }),
+        fetch(`${apiUrl}/api/admin/organizations/${organization.id}/instances`, { headers }),
+      ]);
+      if (usersRes.ok) {
+        const data = await usersRes.json();
+        setUsers(data.users || []);
+      }
+      if (instancesRes.ok) {
+        const data = await instancesRes.json();
+        setOrgInstances(data.instances || []);
+      }
+      setUsersLoaded(true);
+    } catch (err) {
+      console.error("Error fetching users:", err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleUserInstanceChange = async (userId: string, instanceId: string, checked: boolean) => {
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+
+    const currentIds = user.instance_ids || [];
+    const newIds = checked
+      ? [...currentIds, instanceId]
+      : currentIds.filter((id) => id !== instanceId);
+
+    try {
+      const res = await fetch(
+        `${apiUrl}/api/admin/organizations/${organization.id}/users/${userId}/instances`,
+        {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ instance_ids: newIds }),
+        }
+      );
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, instance_ids: newIds } : u))
+        );
+      }
+    } catch (err) {
+      console.error("Error updating user instances:", err);
+    }
+  };
 
   const showMsg = (msg: string) => {
     setMessage(msg);
@@ -254,6 +337,9 @@ export function EditClientModal({
             <TabsTrigger value="handoff" className="text-xs">
               Transbordo
             </TabsTrigger>
+            <TabsTrigger value="users" className="text-xs" onClick={fetchUsers}>
+              Usuários
+            </TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Subscription & Access */}
@@ -396,6 +482,91 @@ export function EditClientModal({
               orgId={organization.id}
               accessToken={accessToken}
             />
+          </TabsContent>
+
+          {/* Tab 6: Users */}
+          <TabsContent value="users" className="space-y-4">
+            {loadingUsers ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : users.length === 0 ? (
+              <div className="py-8 text-center">
+                <Users className="mx-auto h-8 w-8 text-muted-foreground opacity-50" />
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Nenhum usuário encontrado para esta organização.
+                </p>
+              </div>
+            ) : (
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Função</TableHead>
+                      <TableHead>Cadastro</TableHead>
+                      {orgInstances.length > 0 && <TableHead>Instâncias</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">
+                          {user.full_name || "-"}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {user.email}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={user.role === "admin" ? "default" : "outline"}
+                            className="text-xs"
+                          >
+                            {user.role === "admin" ? "Admin" : "Membro"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {user.created_at
+                            ? new Date(user.created_at).toLocaleDateString("pt-BR")
+                            : "-"}
+                        </TableCell>
+                        {orgInstances.length > 0 && (
+                          <TableCell>
+                            {user.role === "admin" ? (
+                              <span className="text-xs text-muted-foreground">Todas</span>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                {orgInstances.map((inst) => (
+                                  <label
+                                    key={inst.id}
+                                    className="flex items-center gap-1.5 text-xs cursor-pointer"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={(user.instance_ids || []).includes(inst.id)}
+                                      onChange={(e) =>
+                                        handleUserInstanceChange(user.id, inst.id, e.target.checked)
+                                      }
+                                      className="h-3.5 w-3.5 rounded border-input"
+                                    />
+                                    {inst.display_name || inst.instance_name}
+                                    {inst.phone_number ? ` (${inst.phone_number})` : ""}
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <p className="text-xs text-muted-foreground">
+                  Membros sem instância atribuída verão todas as conversas. Admins sempre veem tudo.
+                </p>
+              </>
+            )}
           </TabsContent>
 
           {/* Tab 5: Smart Handoff */}

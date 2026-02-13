@@ -8,12 +8,22 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 // Types
 // ---------------------------------------------------------------------------
 
+interface RecentConversation {
+  conversation_id: number;
+  ai_status: string;
+  status: string;
+  updated_at: string;
+}
+
 interface DashboardData {
   totalLeads: number;
   leadsTrend: number;
   totalSalesVolume: number;
+  salesCount: number;
   aiEfficiency: number;
   activeCount: number;
+  conversationsActiveCount: number;
+  conversationsPausedCount: number;
   chartData: { date: string; leads: number }[];
   recentSales: {
     id: string;
@@ -21,6 +31,7 @@ interface DashboardData {
     source: string;
     created_at: string;
   }[];
+  recentConversations: RecentConversation[];
 }
 
 interface Lead {
@@ -67,28 +78,51 @@ export function useRealtimeDashboard(
   const refetch = useCallback(async () => {
     const supabase = createClient();
 
-    const [leadsResult, salesResult, recentSalesResult, activeResult] =
-      await Promise.all([
-        supabase
-          .from("leads")
-          .select("id, created_at", { count: "exact" })
-          .eq("organization_id", orgId),
-        supabase
-          .from("sales_metrics")
-          .select("amount, source, created_at")
-          .eq("organization_id", orgId),
-        supabase
-          .from("sales_metrics")
-          .select("id, amount, source, created_at")
-          .eq("organization_id", orgId)
-          .order("created_at", { ascending: false })
-          .limit(5),
-        supabase
-          .from("leads")
-          .select("id", { count: "exact" })
-          .eq("organization_id", orgId)
-          .in("status", ["new", "qualified"]),
-      ]);
+    const [
+      leadsResult,
+      salesResult,
+      recentSalesResult,
+      activeResult,
+      convActiveResult,
+      convPausedResult,
+      recentConvResult,
+    ] = await Promise.all([
+      supabase
+        .from("leads")
+        .select("id, created_at", { count: "exact" })
+        .eq("organization_id", orgId),
+      supabase
+        .from("sales_metrics")
+        .select("amount, source, created_at")
+        .eq("organization_id", orgId),
+      supabase
+        .from("sales_metrics")
+        .select("id, amount, source, created_at")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact" })
+        .eq("organization_id", orgId)
+        .in("status", ["new", "qualified"]),
+      supabase
+        .from("conversations")
+        .select("id", { count: "exact" })
+        .eq("organization_id", orgId)
+        .eq("ai_status", "active"),
+      supabase
+        .from("conversations")
+        .select("id", { count: "exact" })
+        .eq("organization_id", orgId)
+        .eq("ai_status", "paused"),
+      supabase
+        .from("conversations")
+        .select("conversation_id, ai_status, status, updated_at")
+        .eq("organization_id", orgId)
+        .order("updated_at", { ascending: false })
+        .limit(5),
+    ]);
 
     const totalLeads = leadsResult.count ?? 0;
 
@@ -117,6 +151,7 @@ export function useRealtimeDashboard(
       (sum, s) => sum + (s.amount || 0),
       0
     );
+    const salesCount = allSales.length;
     const aiSales = allSales.filter((s) => s.source === "ai").length;
     const aiEfficiency =
       allSales.length > 0
@@ -124,6 +159,8 @@ export function useRealtimeDashboard(
         : 0;
 
     const activeCount = activeResult.count ?? 0;
+    const conversationsActiveCount = convActiveResult.count ?? 0;
+    const conversationsPausedCount = convPausedResult.count ?? 0;
 
     // Chart data (last 30 days)
     const chartData: { date: string; leads: number }[] = [];
@@ -146,14 +183,25 @@ export function useRealtimeDashboard(
       created_at: s.created_at,
     }));
 
+    const recentConversations: RecentConversation[] = (recentConvResult.data ?? []).map((c: any) => ({
+      conversation_id: c.conversation_id,
+      ai_status: c.ai_status,
+      status: c.status,
+      updated_at: c.updated_at,
+    }));
+
     setData({
       totalLeads,
       leadsTrend,
       totalSalesVolume,
+      salesCount,
       aiEfficiency,
       activeCount,
+      conversationsActiveCount,
+      conversationsPausedCount,
       chartData,
       recentSales,
+      recentConversations,
     });
   }, [orgId]);
 
@@ -180,6 +228,16 @@ export function useRealtimeDashboard(
           event: "*",
           schema: "public",
           table: "sales_metrics",
+          filter: `organization_id=eq.${orgId}`,
+        },
+        () => debouncedRefetch()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "conversations",
           filter: `organization_id=eq.${orgId}`,
         },
         () => debouncedRefetch()

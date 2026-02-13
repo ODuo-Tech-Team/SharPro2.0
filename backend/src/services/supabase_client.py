@@ -1672,3 +1672,83 @@ async def get_followup_stats(org_id: str) -> dict[str, int]:
     except Exception:
         logger.exception("Error getting followup stats for org=%s.", org_id)
         return {}
+
+
+# ---------------------------------------------------------------------------
+# User Management helpers
+# ---------------------------------------------------------------------------
+
+async def get_org_users(org_id: str) -> list[dict[str, Any]]:
+    """Get all users (profiles) for an organization."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("profiles")
+            .select("id, email, full_name, role, created_at")
+            .eq("organization_id", org_id)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        users = response.data or []
+
+        # Enrich with instance assignments
+        for user in users:
+            try:
+                inst_res = (
+                    client.table("user_instances")
+                    .select("instance_id")
+                    .eq("user_id", user["id"])
+                    .execute()
+                )
+                user["instance_ids"] = [
+                    row["instance_id"] for row in (inst_res.data or [])
+                ]
+            except Exception:
+                user["instance_ids"] = []
+
+        return users
+    except Exception:
+        logger.exception("Error getting users for org=%s.", org_id)
+        return []
+
+
+async def get_user_inbox_ids(user_id: str) -> list[int]:
+    """Get Chatwoot inbox IDs for a user's assigned instances."""
+    try:
+        client = _get_client()
+        response = (
+            client.table("user_instances")
+            .select("instance_id, whatsapp_instances!inner(chatwoot_inbox_id)")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        inbox_ids = []
+        for row in (response.data or []):
+            inst = row.get("whatsapp_instances", {})
+            if inst and inst.get("chatwoot_inbox_id"):
+                inbox_ids.append(int(inst["chatwoot_inbox_id"]))
+        return inbox_ids
+    except Exception:
+        logger.exception("Error getting inbox_ids for user=%s.", user_id)
+        return []
+
+
+async def set_user_instances(user_id: str, instance_ids: list[str]) -> None:
+    """Replace all instance assignments for a user."""
+    try:
+        client = _get_client()
+        # Delete existing assignments
+        client.table("user_instances").delete().eq("user_id", user_id).execute()
+
+        # Insert new assignments
+        if instance_ids:
+            rows = [
+                {"user_id": user_id, "instance_id": inst_id}
+                for inst_id in instance_ids
+            ]
+            client.table("user_instances").insert(rows).execute()
+
+        logger.info("User %s instances updated: %s.", user_id, instance_ids)
+    except Exception:
+        logger.exception("Error setting instances for user=%s.", user_id)
+        raise
