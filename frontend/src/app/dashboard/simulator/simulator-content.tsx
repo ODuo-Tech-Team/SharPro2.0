@@ -75,11 +75,13 @@ export function SimulatorContent({
     setInput("");
     setLoading(true);
 
-    // Reset textarea height and keep focus
+    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
-      textareaRef.current.focus();
     }
+
+    // Re-focus after React re-render
+    setTimeout(() => textareaRef.current?.focus(), 0);
 
     try {
       // Build history from previous messages (not including the one we just added)
@@ -130,7 +132,7 @@ export function SimulatorContent({
       ]);
     } finally {
       setLoading(false);
-      textareaRef.current?.focus();
+      setTimeout(() => textareaRef.current?.focus(), 0);
     }
   }, [input, loading, messages, orgId, accountId]);
 
@@ -362,6 +364,7 @@ export function SimulatorContent({
           />
           <Button
             size="icon"
+            tabIndex={-1}
             onMouseDown={(e) => e.preventDefault()}
             onClick={handleSend}
             disabled={loading || !input.trim()}
