@@ -56,7 +56,7 @@ export function BotContent({
   const [activeTab, setActiveTab] = useState<TabId>("personality");
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col -mx-6 -mt-6">
+    <div className="flex h-[calc(100vh-4rem)] flex-col -mx-6 -mt-6 -mb-6 overflow-hidden">
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-800 px-6 pt-2">
         {tabs.map((tab) => (
