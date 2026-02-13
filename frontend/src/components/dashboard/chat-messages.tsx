@@ -28,6 +28,11 @@ interface ChatMessagesProps {
   aiStatus?: string;
 }
 
+function sanitizeMessageContent(content: string): string {
+  // Replace raw JSON media metadata from WhatsApp (stickers, images, etc.)
+  return content.replace(/\{[^{}]*"(?:fileSHA256|mediaKey|fileEncSHA256)"[^{}]*\}/g, "[Mídia]");
+}
+
 function formatMessageTime(timestamp: number): string {
   const date = new Date(timestamp * 1000);
   return date.toLocaleTimeString("pt-BR", {
@@ -231,7 +236,8 @@ export function ChatMessages({
         </div>
       ) : (
         <ScrollArea ref={scrollRef} className="flex-1 px-4 py-3">
-          <div className="flex min-h-full flex-col justify-end">
+          <div className="flex min-h-full flex-col">
+            <div className="flex-1" />
             {groupedMessages.map((group) => (
               <div key={group.date}>
                 {/* Date separator */}
@@ -264,7 +270,7 @@ export function ChatMessages({
                               {msg.sender?.name || "Agente"}
                             </p>
                           )}
-                          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                          <p className="whitespace-pre-wrap break-words">{sanitizeMessageContent(msg.content!)}</p>
                           <p
                             className={`mt-0.5 text-[10px] ${
                               isOutgoing ? "text-white/60" : "text-muted-foreground"
