@@ -280,11 +280,12 @@ async def _execute_tool_call(
                 f"Faça upgrade do plano para registrar mais leads."
             )
 
-        lead = await supabase_svc.insert_lead(
+        lead = await supabase_svc.upsert_lead(
             org_id=ctx.organization_id,
             name=lead_name,
             phone=lead_phone,
             contact_id=ctx.contact_id,
+            source="organic",
         )
 
         # --- Lead scoring: classify interest based on conversation ---

@@ -78,6 +78,34 @@ _QUALIFICACAO_RE = re.compile(
 )
 
 
+# ---------------------------------------------------------------------------
+# Lead source detection (digital ads vs organic)
+# ---------------------------------------------------------------------------
+
+_DIGITAL_PATTERNS = [
+    "[por favor, enviar essa mensagem]",
+    "[enviar mensagem]",
+    "gostaria de mais informacoes",
+    "gostaria de mais informações",
+    "vi o anuncio",
+    "vi o anúncio",
+    "vi no google",
+    "vi no instagram",
+    "vi no facebook",
+    "cliquei no anuncio",
+    "cliquei no anúncio",
+]
+
+
+def _detect_lead_source(message: str) -> str:
+    """Detect if message is from a digital ad or organic contact."""
+    msg_lower = message.lower().strip()
+    for pattern in _DIGITAL_PATTERNS:
+        if pattern in msg_lower:
+            return "digital"
+    return "organic"
+
+
 def _extract_qualification(text: str) -> tuple[str, Optional[dict[str, Any]]]:
     """
     Extract [QUALIFICACAO] JSON from AI response.
@@ -267,6 +295,37 @@ async def _process_batch(
             )
         except Exception:
             logger.warning("Failed to upsert conversation %d (non-critical).", conversation_id)
+
+        # 3b-2. Auto-create lead from incoming message (before AI processes)
+        sender_phone = sender.get("phone_number", "") if sender else ""
+        sender_name = sender.get("name", "Desconhecido") if sender else "Desconhecido"
+
+        if sender_phone:
+            source = _detect_lead_source(combined_text)
+            try:
+                lead = await supabase_svc.upsert_lead(
+                    org_id=org["id"],
+                    name=sender_name,
+                    phone=sender_phone,
+                    contact_id=contact_id_for_upsert,
+                    source=source,
+                )
+                if lead and lead.get("id"):
+                    # Only set pipeline for NEW leads (upsert returns status="new" for inserts)
+                    # Existing leads already have a pipeline stage — don't overwrite
+                    if lead.get("status") == "new":
+                        from datetime import datetime, timezone
+                        await supabase_svc.update_lead_pipeline(lead["id"], {
+                            "pipeline_status": "ia_atendendo",
+                            "conversation_id": conversation_id,
+                            "last_contact_at": datetime.now(timezone.utc).isoformat(),
+                        })
+                    logger.info(
+                        "Auto-lead: phone=%s, source=%s, conversation=%d, new=%s.",
+                        sender_phone, source, conversation_id, lead.get("status") == "new",
+                    )
+            except Exception:
+                logger.warning("Auto-create lead failed for phone=%s (non-critical).", sender_phone)
 
         system_prompt: str = org.get("system_prompt") or (
             "You are a helpful sales assistant. Be polite, concise, and helpful."

@@ -386,7 +386,14 @@ async def upsert_lead(
             .execute()
         )
         if existing.data:
-            logger.debug("Lead already exists for phone=%s org=%s. Skipping.", phone, org_id)
+            logger.debug("Lead already exists for phone=%s org=%s. Updating last_contact_at.", phone, org_id)
+            try:
+                from datetime import datetime, timezone
+                client.table("leads").update({
+                    "last_contact_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", existing.data[0]["id"]).execute()
+            except Exception:
+                pass
             return existing.data[0]
 
         payload: dict[str, Any] = {
