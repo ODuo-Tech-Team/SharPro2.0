@@ -131,7 +131,7 @@ export function SimulatorContent({
       setLoading(false);
       textareaRef.current?.focus();
     }
-  }, [input, loading, messages, accountId]);
+  }, [input, loading, messages, orgId, accountId]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -346,19 +346,18 @@ export function SimulatorContent({
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = "auto";
+              target.style.height = target.scrollHeight + "px";
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Digite uma mensagem para testar a IA..."
             disabled={loading}
             rows={1}
-            className="flex-1 resize-none rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shark-blue disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ maxHeight: "120px", minHeight: "44px" }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = "auto";
-              target.style.height =
-                Math.min(target.scrollHeight, 120) + "px";
-            }}
+            className="flex-1 resize-none overflow-hidden rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shark-blue disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ minHeight: "44px" }}
           />
           <Button
             size="icon"
