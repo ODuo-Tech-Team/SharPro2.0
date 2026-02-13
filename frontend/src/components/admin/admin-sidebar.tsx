@@ -4,13 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
-import { Users, ArrowLeft, Shield } from "lucide-react";
+import { Users, ArrowLeft, Shield, CalendarCheck } from "lucide-react";
 
 const adminNav = [
   {
     name: "Clientes",
     href: "/admin/clients",
     icon: Users,
+  },
+  {
+    name: "Agendar Reuniao",
+    href: "/admin/meetings",
+    icon: CalendarCheck,
   },
 ];
 
