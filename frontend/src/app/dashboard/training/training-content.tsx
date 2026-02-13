@@ -116,7 +116,7 @@ export function TrainingContent({
       formData.append("account_id", String(accountId));
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/knowledge/upload`,
+        `${"/backend-api"}/api/knowledge/upload`,
         {
           method: "POST",
           body: formData,
@@ -155,7 +155,7 @@ export function TrainingContent({
     setDeletingId(fileId);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/knowledge/files/${fileId}`,
+        `${"/backend-api"}/api/knowledge/files/${fileId}`,
         { method: "DELETE" }
       );
       if (!res.ok) throw new Error("Erro ao excluir arquivo");
@@ -175,7 +175,7 @@ export function TrainingContent({
     setSimulationResult(null);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/knowledge/simulate`,
+        `${"/backend-api"}/api/knowledge/simulate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

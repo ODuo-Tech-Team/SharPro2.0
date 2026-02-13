@@ -26,7 +26,7 @@ export function ChannelsList({ accountId }: ChannelsListProps) {
   const fetchInstances = useCallback(async (): Promise<void> => {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/org/${accountId}`
+        `${"/backend-api"}/api/instances/org/${accountId}`
       );
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
@@ -49,7 +49,7 @@ export function ChannelsList({ accountId }: ChannelsListProps) {
   const handleRefreshStatus = async (instanceId: string): Promise<void> => {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/status`
+        `${"/backend-api"}/api/instances/${instanceId}/status`
       );
       if (res.ok) {
         await fetchInstances();
@@ -62,7 +62,7 @@ export function ChannelsList({ accountId }: ChannelsListProps) {
   const handleDisconnect = async (instanceId: string): Promise<void> => {
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/disconnect`,
+        `${"/backend-api"}/api/instances/${instanceId}/disconnect`,
         { method: "POST" }
       );
       if (res.ok) {

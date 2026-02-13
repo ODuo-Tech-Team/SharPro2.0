@@ -24,7 +24,7 @@ interface AdminInstancesProps {
 }
 
 export function AdminInstances({ orgId, accessToken, onUpdate }: AdminInstancesProps) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const apiUrl = "/backend-api";
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",

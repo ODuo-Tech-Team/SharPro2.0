@@ -106,7 +106,7 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
     setLoadingAction(campaignId);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/campaigns/${campaignId}/${action}`,
+        `${"/backend-api"}/api/campaigns/${campaignId}/${action}`,
         { method: "POST" }
       );
       if (!res.ok) throw new Error(`Failed to ${action} campaign`);
@@ -121,7 +121,7 @@ export function CampaignsList({ orgId, initialCampaigns }: CampaignsListProps) {
     setDeletingId(campaignId);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/campaigns/${campaignId}`,
+        `${"/backend-api"}/api/campaigns/${campaignId}`,
         { method: "DELETE" }
       );
       if (!res.ok) {

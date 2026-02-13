@@ -51,7 +51,7 @@ export function EditCampaign({ campaign, open, onOpenChange }: EditCampaignProps
     setSaving(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/campaigns/${campaign.id}`,
+        `${"/backend-api"}/api/campaigns/${campaign.id}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -85,7 +85,7 @@ export function EditCampaign({ campaign, open, onOpenChange }: EditCampaignProps
       formData.append("file", file);
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/campaigns/${campaign.id}/upload-csv`,
+        `${"/backend-api"}/api/campaigns/${campaign.id}/upload-csv`,
         { method: "POST", body: formData }
       );
 

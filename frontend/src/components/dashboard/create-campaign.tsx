@@ -45,7 +45,7 @@ export function CreateCampaign({ accountId }: CreateCampaignProps) {
     setLoading(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/campaigns/`,
+        `${"/backend-api"}/api/campaigns/`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -83,7 +83,7 @@ export function CreateCampaign({ accountId }: CreateCampaignProps) {
       formData.append("file", file);
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/campaigns/${campaignId}/upload-csv`,
+        `${"/backend-api"}/api/campaigns/${campaignId}/upload-csv`,
         { method: "POST", body: formData }
       );
 

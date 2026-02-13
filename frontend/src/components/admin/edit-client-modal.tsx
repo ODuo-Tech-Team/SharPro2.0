@@ -49,7 +49,7 @@ export function EditClientModal({
   open,
   onClose,
 }: EditClientModalProps) {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const apiUrl = "/backend-api";
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     "Content-Type": "application/json",

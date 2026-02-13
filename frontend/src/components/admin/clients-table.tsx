@@ -109,7 +109,7 @@ export function ClientsTable({ organizations, plans, accessToken }: ClientsTable
       localStorage.setItem("admin_session_backup", "true");
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/admin/impersonate/${orgId}`,
+        `${"/backend-api"}/api/admin/impersonate/${orgId}`,
         {
           method: "POST",
           headers: {

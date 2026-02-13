@@ -59,7 +59,7 @@ export function ConversationList({
       setLoading(true);
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}?status=${statusFilter}&page=${pageNum}`
+          `${"/backend-api"}/api/chatwoot/conversations/${accountId}?status=${statusFilter}&page=${pageNum}`
         );
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();

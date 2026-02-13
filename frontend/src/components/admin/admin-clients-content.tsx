@@ -26,7 +26,7 @@ export function AdminClientsContent() {
       }
 
       setAccessToken(session.access_token);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const apiUrl = "/backend-api";
       const headers = {
         Authorization: `Bearer ${session.access_token}`,
         "Content-Type": "application/json",

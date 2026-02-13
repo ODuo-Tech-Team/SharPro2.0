@@ -141,7 +141,7 @@ export function LeadsTable({ orgId, initialLeads, accountId }: LeadsTableProps) 
       if (originFilter !== "all") params.set("origin", originFilter);
 
       const url = accountId
-        ? `${process.env.NEXT_PUBLIC_API_URL}/api/leads/${accountId}/export?${params}`
+        ? `${"/backend-api"}/api/leads/${accountId}/export?${params}`
         : null;
 
       if (!url) {

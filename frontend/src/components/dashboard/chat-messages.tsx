@@ -71,7 +71,7 @@ export function ChatMessages({
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}/${conversationId}/messages?_t=${Date.now()}`,
+        `${"/backend-api"}/api/chatwoot/conversations/${accountId}/${conversationId}/messages?_t=${Date.now()}`,
         { cache: "no-store" }
       );
       if (!res.ok) throw new Error("Failed to fetch messages");
@@ -103,7 +103,7 @@ export function ChatMessages({
     // Try SSE for instant updates (bonus - polling handles it if SSE fails)
     let eventSource: EventSource | null = null;
     try {
-      const sseUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/sse/messages/${accountId}/${conversationId}`;
+      const sseUrl = `${"/backend-api"}/api/sse/messages/${accountId}/${conversationId}`;
       eventSource = new EventSource(sseUrl);
 
       eventSource.onmessage = (event) => {
@@ -145,7 +145,7 @@ export function ChatMessages({
     setReactivating(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/conversations/${conversationId}/reactivate`,
+        `${"/backend-api"}/api/conversations/${conversationId}/reactivate`,
         { method: "POST" }
       );
       if (!res.ok) throw new Error("Failed to reactivate");

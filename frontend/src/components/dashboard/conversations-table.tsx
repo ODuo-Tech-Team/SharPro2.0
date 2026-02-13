@@ -48,7 +48,7 @@ export function ConversationsTable({
     setLoadingId(conversationId);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/conversations/${conversationId}/reactivate`,
+        `${"/backend-api"}/api/conversations/${conversationId}/reactivate`,
         { method: "POST" }
       );
       if (!res.ok) throw new Error("Failed to reactivate");

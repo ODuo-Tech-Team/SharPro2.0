@@ -23,7 +23,7 @@ export function QrModal({ instanceId, open, onClose, onConnected }: QrModalProps
     setError("");
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/qrcode`
+        `${"/backend-api"}/api/instances/${instanceId}/qrcode`
       );
       if (!res.ok) {
         const data = await res.json();
@@ -58,7 +58,7 @@ export function QrModal({ instanceId, open, onClose, onConnected }: QrModalProps
     const checkStatus = async () => {
       try {
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/instances/${instanceId}/status`
+          `${"/backend-api"}/api/instances/${instanceId}/status`
         );
         if (!res.ok) return;
         const data = await res.json();

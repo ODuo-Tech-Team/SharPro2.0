@@ -26,7 +26,7 @@ export function ChatInput({
     setSending(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}/${conversationId}/messages`,
+        `${"/backend-api"}/api/chatwoot/conversations/${accountId}/${conversationId}/messages`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

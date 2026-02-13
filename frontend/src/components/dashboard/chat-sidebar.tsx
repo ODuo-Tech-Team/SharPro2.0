@@ -92,7 +92,7 @@ export function ChatSidebar({
       try {
         const currentStatus = statusFilterRef.current;
         const currentInboxId = selectedInboxIdRef.current;
-        let url = `${process.env.NEXT_PUBLIC_API_URL}/api/chatwoot/conversations/${accountId}?status=${currentStatus}&page=${pageNum}&_t=${Date.now()}`;
+        let url = `${"/backend-api"}/api/chatwoot/conversations/${accountId}?status=${currentStatus}&page=${pageNum}&_t=${Date.now()}`;
         if (currentInboxId) {
           url += `&inbox_id=${currentInboxId}`;
         }
