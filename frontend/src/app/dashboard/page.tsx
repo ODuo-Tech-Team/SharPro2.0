@@ -38,7 +38,7 @@ async function getDashboardData() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("organization_id")
+    .select("organization_id, is_superadmin")
     .eq("id", user.id)
     .single();
 
@@ -174,6 +174,7 @@ async function getDashboardData() {
 
   return {
     orgId,
+    isSuperAdmin: profile.is_superadmin === true,
     totalLeads,
     leadsTrend,
     totalSalesVolume,
@@ -209,6 +210,7 @@ export default async function DashboardPage() {
   return (
     <DashboardContent
       orgId={data.orgId}
+      isSuperAdmin={data.isSuperAdmin}
       totalLeads={data.totalLeads}
       leadsTrend={data.leadsTrend}
       totalSalesVolume={data.totalSalesVolume}

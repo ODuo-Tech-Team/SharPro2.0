@@ -58,51 +58,54 @@ interface Lead {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<
+function buildStatusConfig(isSuperAdmin?: boolean): Record<
   PipelineStatus,
   { label: string; color: string; badgeClass: string }
-> = {
-  ia_atendendo: {
-    label: "IA atendendo",
-    color: "bg-blue-500",
-    badgeClass:
-      "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-transparent",
-  },
-  qualificado: {
-    label: "Qualificado",
-    color: "bg-violet-500",
-    badgeClass:
-      "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-transparent",
-  },
-  transferido: {
-    label: "Transferido",
-    color: "bg-amber-500",
-    badgeClass:
-      "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-transparent",
-  },
-  orcamento_enviado: {
-    label: "Orçamento enviado",
-    color: "bg-orange-500",
-    badgeClass:
-      "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-transparent",
-  },
-  venda_confirmada: {
-    label: "Venda confirmada",
-    color: "bg-emerald-500",
-    badgeClass:
-      "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-transparent",
-  },
-  perdido: {
-    label: "Perdido",
-    color: "bg-red-500",
-    badgeClass:
-      "bg-red-500/15 text-red-600 dark:text-red-400 border-transparent",
-  },
-};
+> {
+  return {
+    ia_atendendo: {
+      label: isSuperAdmin ? "IA Prospectando" : "IA atendendo",
+      color: "bg-blue-500",
+      badgeClass:
+        "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-transparent",
+    },
+    qualificado: {
+      label: "Qualificado",
+      color: "bg-violet-500",
+      badgeClass:
+        "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-transparent",
+    },
+    transferido: {
+      label: "Transferido",
+      color: "bg-amber-500",
+      badgeClass:
+        "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-transparent",
+    },
+    orcamento_enviado: {
+      label: isSuperAdmin ? "Reunião Agendada" : "Orçamento enviado",
+      color: "bg-orange-500",
+      badgeClass:
+        "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-transparent",
+    },
+    venda_confirmada: {
+      label: isSuperAdmin ? "Reunião Realizada" : "Venda confirmada",
+      color: "bg-emerald-500",
+      badgeClass:
+        "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-transparent",
+    },
+    perdido: {
+      label: "Perdido",
+      color: "bg-red-500",
+      badgeClass:
+        "bg-red-500/15 text-red-600 dark:text-red-400 border-transparent",
+    },
+  };
+}
 
-function getStatusConfig(status: string) {
+function getStatusConfig(status: string, isSuperAdmin?: boolean) {
+  const config = buildStatusConfig(isSuperAdmin);
   return (
-    STATUS_CONFIG[status as PipelineStatus] ?? {
+    config[status as PipelineStatus] ?? {
       label: status,
       color: "bg-gray-500",
       badgeClass:
@@ -149,10 +152,10 @@ function timeAgo(dateStr: string) {
 
 // ── Stats ──────────────────────────────────────────────────────
 
-function StatsCards({ leads }: { leads: Lead[] }) {
+function StatsCards({ leads, isSuperAdmin }: { leads: Lead[]; isSuperAdmin?: boolean }) {
   const stats = [
     {
-      label: "IA Atendendo",
+      label: isSuperAdmin ? "IA Prospectando" : "IA Atendendo",
       value: leads.filter(
         (l) =>
           l.pipeline_status === "ia_atendendo" ||
@@ -170,7 +173,7 @@ function StatsCards({ leads }: { leads: Lead[] }) {
       bg: "bg-amber-500/10",
     },
     {
-      label: "Orçamentos",
+      label: isSuperAdmin ? "Agendadas" : "Orçamentos",
       value: leads.filter((l) => l.pipeline_status === "orcamento_enviado")
         .length,
       icon: FileText,
@@ -178,7 +181,7 @@ function StatsCards({ leads }: { leads: Lead[] }) {
       bg: "bg-orange-500/10",
     },
     {
-      label: "Vendas Confirmadas",
+      label: isSuperAdmin ? "Reuniões Realizadas" : "Vendas Confirmadas",
       value: leads.filter((l) => l.pipeline_status === "venda_confirmada")
         .length,
       icon: CheckCircle2,
@@ -208,8 +211,8 @@ function StatsCards({ leads }: { leads: Lead[] }) {
 
 // ── Lead Card ──────────────────────────────────────────────────
 
-function LeadCard({ lead }: { lead: Lead }) {
-  const cfg = getStatusConfig(lead.pipeline_status);
+function LeadCard({ lead, isSuperAdmin }: { lead: Lead; isSuperAdmin?: boolean }) {
+  const cfg = getStatusConfig(lead.pipeline_status, isSuperAdmin);
 
   return (
     <Card className="transition-shadow hover:shadow-md">
@@ -290,7 +293,7 @@ function LeadCard({ lead }: { lead: Lead }) {
 
 // ── Table View ─────────────────────────────────────────────────
 
-function LeadsTable({ leads }: { leads: Lead[] }) {
+function LeadsTable({ leads, isSuperAdmin }: { leads: Lead[]; isSuperAdmin?: boolean }) {
   return (
     <Card>
       <Table>
@@ -307,7 +310,7 @@ function LeadsTable({ leads }: { leads: Lead[] }) {
         </TableHeader>
         <TableBody>
           {leads.map((lead) => {
-            const cfg = getStatusConfig(lead.pipeline_status);
+            const cfg = getStatusConfig(lead.pipeline_status, isSuperAdmin);
             return (
               <TableRow key={lead.id}>
                 <TableCell className="font-medium">{lead.name}</TableCell>
@@ -373,9 +376,10 @@ function LeadsTable({ leads }: { leads: Lead[] }) {
 interface FollowupContentProps {
   orgId: string;
   initialLeads: Lead[];
+  isSuperAdmin?: boolean;
 }
 
-export function FollowupContent({ orgId, initialLeads }: FollowupContentProps) {
+export function FollowupContent({ orgId, initialLeads, isSuperAdmin }: FollowupContentProps) {
   const leads = useRealtimeLeads(orgId, initialLeads);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("todos");
@@ -403,17 +407,17 @@ export function FollowupContent({ orgId, initialLeads }: FollowupContentProps) {
   return (
     <>
       {/* Stats */}
-      <StatsCards leads={leads} />
+      <StatsCards leads={leads} isSuperAdmin={isSuperAdmin} />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <Tabs value={tab} onValueChange={setTab} className="w-full sm:w-auto">
           <TabsList>
             <TabsTrigger value="todos">Todos</TabsTrigger>
-            <TabsTrigger value="ia_atendendo">IA Atendendo</TabsTrigger>
+            <TabsTrigger value="ia_atendendo">{isSuperAdmin ? "IA Prospectando" : "IA Atendendo"}</TabsTrigger>
             <TabsTrigger value="transferido">Transferidos</TabsTrigger>
-            <TabsTrigger value="orcamento">Orçamentos</TabsTrigger>
-            <TabsTrigger value="venda">Vendas</TabsTrigger>
+            <TabsTrigger value="orcamento">{isSuperAdmin ? "Agendadas" : "Orçamentos"}</TabsTrigger>
+            <TabsTrigger value="venda">{isSuperAdmin ? "Realizadas" : "Vendas"}</TabsTrigger>
             <TabsTrigger value="perdido">Perdidos</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -457,7 +461,7 @@ export function FollowupContent({ orgId, initialLeads }: FollowupContentProps) {
       {view === "cards" ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((lead) => (
-            <LeadCard key={lead.id} lead={lead} />
+            <LeadCard key={lead.id} lead={lead} isSuperAdmin={isSuperAdmin} />
           ))}
           {filtered.length === 0 && (
             <div className="col-span-full text-center py-12 text-muted-foreground">
@@ -466,7 +470,7 @@ export function FollowupContent({ orgId, initialLeads }: FollowupContentProps) {
           )}
         </div>
       ) : (
-        <LeadsTable leads={filtered} />
+        <LeadsTable leads={filtered} isSuperAdmin={isSuperAdmin} />
       )}
     </>
   );

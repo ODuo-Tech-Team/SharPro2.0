@@ -20,6 +20,7 @@ interface Lead {
 
 async function getFollowupData(): Promise<{
   orgId: string;
+  isSuperAdmin: boolean;
   leads: Lead[];
 } | null> {
   const supabase = await createClient();
@@ -32,7 +33,7 @@ async function getFollowupData(): Promise<{
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("organization_id")
+    .select("organization_id, is_superadmin")
     .eq("id", user.id)
     .single();
 
@@ -48,6 +49,7 @@ async function getFollowupData(): Promise<{
 
   return {
     orgId: profile.organization_id,
+    isSuperAdmin: profile.is_superadmin === true,
     leads: (leads ?? []) as Lead[],
   };
 }
@@ -69,14 +71,16 @@ export default async function FollowupPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
-          Follow-up de Vendas
+          {data.isSuperAdmin ? "Follow-up de Reuniões" : "Follow-up de Vendas"}
         </h1>
         <p className="text-muted-foreground">
-          Acompanhe o pipeline de vendas e os resumos gerados pela IA.
+          {data.isSuperAdmin
+            ? "Acompanhe os prospects, dados coletados pela IA e reuniões agendadas."
+            : "Acompanhe o pipeline de vendas e os resumos gerados pela IA."}
         </p>
       </div>
 
-      <FollowupContent orgId={data.orgId} initialLeads={data.leads} />
+      <FollowupContent orgId={data.orgId} initialLeads={data.leads} isSuperAdmin={data.isSuperAdmin} />
     </div>
   );
 }

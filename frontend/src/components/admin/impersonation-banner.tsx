@@ -21,7 +21,7 @@ export function ImpersonationBanner() {
     localStorage.removeItem("admin_session_backup");
     setImpersonating(false);
     // Redirect back to admin panel
-    window.location.href = "/admin/clients";
+    window.location.href = "/dashboard/admin";
   };
 
   if (!impersonating) return null;

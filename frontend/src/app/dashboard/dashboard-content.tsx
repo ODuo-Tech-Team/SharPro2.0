@@ -38,6 +38,7 @@ interface RecentConversation {
 
 interface DashboardContentProps {
   orgId: string;
+  isSuperAdmin?: boolean;
   totalLeads: number;
   leadsTrend: number;
   totalSalesVolume: number;
@@ -133,6 +134,7 @@ function DarkTooltip({ active, payload, label }: ChartTooltipProps) {
 
 export function DashboardContent({
   orgId,
+  isSuperAdmin,
   totalLeads,
   leadsTrend,
   totalSalesVolume,
@@ -165,7 +167,11 @@ export function DashboardContent({
           <h1 className="text-2xl font-bold tracking-tight text-white">
             Visao Geral
           </h1>
-          <p className="text-slate-400">Acompanhe seus atendimentos e metricas.</p>
+          <p className="text-slate-400">
+            {isSuperAdmin
+              ? "Acompanhe seus prospects, reunioes e atendimentos da IA."
+              : "Acompanhe seus atendimentos e metricas."}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -189,29 +195,31 @@ export function DashboardContent({
       {/* KPI Cards                                                           */}
       {/* ------------------------------------------------------------------ */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {/* Faturamento */}
+        {/* Faturamento / Reunioes Agendadas */}
         <div className="group rounded-xl border border-slate-800 bg-slate-900/50 p-6 transition-colors hover:border-blue-500/30">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-slate-400">
-              Faturamento (IA)
+              {isSuperAdmin ? "Reunioes Agendadas" : "Faturamento (IA)"}
             </p>
             <div className="rounded-lg bg-blue-500/10 p-2">
               <DollarSign className="h-5 w-5 text-blue-400" />
             </div>
           </div>
           <p className="mt-3 text-2xl font-bold text-white">
-            {formatCurrency(live.totalSalesVolume)}
+            {isSuperAdmin ? salesCount : formatCurrency(live.totalSalesVolume)}
           </p>
           <p className="mt-1 text-xs text-emerald-400">
-            {live.leadsTrend >= 0 ? "+" : ""}{live.leadsTrend}% vs. semana anterior
+            {isSuperAdmin
+              ? "Total registrado"
+              : `${live.leadsTrend >= 0 ? "+" : ""}${live.leadsTrend}% vs. semana anterior`}
           </p>
         </div>
 
-        {/* Vendas Fechadas */}
+        {/* Vendas Fechadas / Reunioes Realizadas */}
         <div className="group rounded-xl border border-slate-800 bg-slate-900/50 p-6 transition-colors hover:border-emerald-500/30">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-slate-400">
-              Vendas Fechadas
+              {isSuperAdmin ? "Reunioes Realizadas" : "Vendas Fechadas"}
             </p>
             <div className="rounded-lg bg-emerald-500/10 p-2">
               <TrendingUp className="h-5 w-5 text-emerald-400" />
@@ -224,7 +232,9 @@ export function DashboardContent({
         {/* Leads Totais */}
         <div className="group rounded-xl border border-slate-800 bg-slate-900/50 p-6 transition-colors hover:border-purple-500/30">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-400">Leads Totais</p>
+            <p className="text-sm font-medium text-slate-400">
+              {isSuperAdmin ? "Prospects Totais" : "Leads Totais"}
+            </p>
             <div className="rounded-lg bg-purple-500/10 p-2">
               <Users className="h-5 w-5 text-purple-400" />
             </div>
@@ -241,7 +251,7 @@ export function DashboardContent({
         <div className="group rounded-xl border border-slate-800 bg-slate-900/50 p-6 transition-colors hover:border-amber-500/30">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-slate-400">
-              IA em Atendimento
+              {isSuperAdmin ? "IA Prospectando" : "IA em Atendimento"}
             </p>
             <div className="rounded-lg bg-amber-500/10 p-2">
               <MessageSquare className="h-5 w-5 text-amber-400" />
@@ -266,7 +276,7 @@ export function DashboardContent({
       {/* ------------------------------------------------------------------ */}
       <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
         <h2 className="mb-4 text-base font-semibold text-white">
-          Leads por Dia (ultimos 30 dias)
+          {isSuperAdmin ? "Prospects por Dia (ultimos 30 dias)" : "Leads por Dia (ultimos 30 dias)"}
         </h2>
         {live.chartData.some((d: { date: string; leads: number }) => d.leads > 0) ? (
           <div className="h-[280px]">
@@ -298,7 +308,9 @@ export function DashboardContent({
           </div>
         ) : (
           <div className="flex h-[200px] items-center justify-center">
-            <p className="text-sm text-slate-500">Nenhum lead registrado nos ultimos 30 dias.</p>
+            <p className="text-sm text-slate-500">
+              {isSuperAdmin ? "Nenhum prospect registrado nos ultimos 30 dias." : "Nenhum lead registrado nos ultimos 30 dias."}
+            </p>
           </div>
         )}
       </div>

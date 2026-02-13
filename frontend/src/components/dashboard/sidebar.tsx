@@ -11,13 +11,20 @@ import {
   MessageSquare,
   Megaphone,
   Smartphone,
-  Shield,
+  Building2,
   Brain,
   Sparkles,
   TrendingUp,
 } from "lucide-react";
 
-const navigation = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  superAdminOnly?: boolean;
+}
+
+const navigation: NavItem[] = [
   {
     name: "Dashboard",
     href: "/dashboard",
@@ -59,6 +66,12 @@ const navigation = [
     icon: Megaphone,
   },
   {
+    name: "Gerenciar Empresas",
+    href: "/dashboard/admin",
+    icon: Building2,
+    superAdminOnly: true,
+  },
+  {
     name: "Configurações",
     href: "/dashboard/settings",
     icon: Settings,
@@ -87,42 +100,33 @@ export function Sidebar({ isSuperAdmin }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {navigation.map((item) => {
-          const isActive =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+        {navigation
+          .filter((item) => !item.superAdminOnly || isSuperAdmin)
+          .map((item) => {
+            const isActive =
+              item.href === "/dashboard"
+                ? pathname === "/dashboard"
+                : pathname.startsWith(item.href);
 
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-shark-blue/15 text-shark-blue"
-                  : "text-gray-400 hover:bg-white/5 hover:text-white"
-              )}
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {item.name}
-            </Link>
-          );
-        })}
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  isActive
+                    ? item.superAdminOnly
+                      ? "bg-amber-500/15 text-amber-500"
+                      : "bg-shark-blue/15 text-shark-blue"
+                    : "text-gray-400 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <item.icon className="h-5 w-5 flex-shrink-0" />
+                {item.name}
+              </Link>
+            );
+          })}
       </nav>
-
-      {/* Admin link */}
-      {isSuperAdmin && (
-        <div className="border-t border-white/10 px-3 py-3">
-          <Link
-            href="/admin/clients"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-500 transition-colors hover:bg-amber-500/10"
-          >
-            <Shield className="h-5 w-5 flex-shrink-0" />
-            Admin
-          </Link>
-        </div>
-      )}
 
       {/* Footer */}
       <div className="border-t border-white/10 p-4">
