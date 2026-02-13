@@ -235,7 +235,7 @@ export function ChatMessages({
             {groupedMessages.map((group) => (
               <div key={group.date}>
                 {/* Date separator */}
-                <div className="my-3 flex items-center gap-3">
+                <div className="my-2 flex items-center gap-3">
                   <div className="flex-1 border-t" />
                   <span className="text-[11px] font-medium text-muted-foreground">
                     {group.date}
@@ -250,7 +250,7 @@ export function ChatMessages({
                     return (
                       <div
                         key={msg.id}
-                        className={`mb-2 flex ${isOutgoing ? "justify-end" : "justify-start"}`}
+                        className={`mb-1 flex ${isOutgoing ? "justify-end" : "justify-start"}`}
                       >
                         <div
                           className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
@@ -266,7 +266,7 @@ export function ChatMessages({
                           )}
                           <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                           <p
-                            className={`mt-1 text-[10px] ${
+                            className={`mt-0.5 text-[10px] ${
                               isOutgoing ? "text-white/60" : "text-muted-foreground"
                             } text-right`}
                           >
