@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Send, Loader2 } from "lucide-react";
 
@@ -19,6 +19,11 @@ export function ChatInput({
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Always keep focus on textarea
+  useEffect(() => {
+    textareaRef.current?.focus();
+  });
+
   const handleSend = useCallback(async () => {
     const content = message.trim();
     if (!content || sending) return;
@@ -35,9 +40,8 @@ export function ChatInput({
       );
       if (!res.ok) throw new Error("Failed to send");
       setMessage("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
       onMessageSent?.();
-      // Re-focus textarea after sending
-      textareaRef.current?.focus();
     } catch (err) {
       console.error("Error sending message:", err);
     } finally {
@@ -57,21 +61,23 @@ export function ChatInput({
       <textarea
         ref={textareaRef}
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={(e) => {
+          setMessage(e.target.value);
+          const target = e.target as HTMLTextAreaElement;
+          target.style.height = "auto";
+          target.style.height = target.scrollHeight + "px";
+        }}
         onKeyDown={handleKeyDown}
         placeholder="Digite sua mensagem..."
         disabled={sending}
         rows={1}
-        className="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        style={{ maxHeight: "120px", minHeight: "40px" }}
-        onInput={(e) => {
-          const target = e.target as HTMLTextAreaElement;
-          target.style.height = "auto";
-          target.style.height = Math.min(target.scrollHeight, 120) + "px";
-        }}
+        className="flex-1 resize-none overflow-hidden rounded-lg border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        style={{ minHeight: "40px" }}
       />
       <Button
         size="icon"
+        tabIndex={-1}
+        onMouseDown={(e) => e.preventDefault()}
         onClick={handleSend}
         disabled={sending || !message.trim()}
         className="h-10 w-10 shrink-0 bg-shark-blue hover:bg-shark-blue/90"
