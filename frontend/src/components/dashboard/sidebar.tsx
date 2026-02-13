@@ -134,11 +134,6 @@ export function Sidebar({ isSuperAdmin }: SidebarProps) {
           })}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-white/10 p-4">
-        <p className="text-xs text-gray-500">SharkPro V2.0</p>
-        <p className="text-[10px] text-gray-600">Powered by ODuo</p>
-      </div>
     </aside>
   );
 }
