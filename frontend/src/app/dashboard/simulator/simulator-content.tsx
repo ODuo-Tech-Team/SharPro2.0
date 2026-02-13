@@ -75,9 +75,10 @@ export function SimulatorContent({
     setInput("");
     setLoading(true);
 
-    // Reset textarea height
+    // Reset textarea height and keep focus
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
+      textareaRef.current.focus();
     }
 
     try {
@@ -361,6 +362,7 @@ export function SimulatorContent({
           />
           <Button
             size="icon"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleSend}
             disabled={loading || !input.trim()}
             className="h-11 w-11 shrink-0 rounded-xl bg-shark-blue hover:bg-shark-blue/90"
