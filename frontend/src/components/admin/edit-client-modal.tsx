@@ -81,6 +81,11 @@ export function EditClientModal({
   const [chatwootUrl, setChatwootUrl] = useState(organization.chatwoot_url || "");
   const [chatwootToken, setChatwootToken] = useState(organization.chatwoot_token || "");
 
+  // Kommo welcome message
+  const [kommoWelcomeMessage, setKommoWelcomeMessage] = useState(
+    organization.kommo_welcome_message || ""
+  );
+
   // Tab 5: Smart Handoff
   const existingConfig = organization.ai_handoff_config || {};
   const [handoffEnabled, setHandoffEnabled] = useState(existingConfig.enabled === true);
@@ -263,6 +268,9 @@ export function EditClientModal({
       if (inboxId) updates.inbox_id = parseInt(inboxId);
       if (chatwootUrl) updates.chatwoot_url = chatwootUrl;
       if (chatwootToken) updates.chatwoot_token = chatwootToken;
+      if (kommoWelcomeMessage !== (organization.kommo_welcome_message || "")) {
+        updates.kommo_welcome_message = kommoWelcomeMessage || null;
+      }
 
       if (Object.keys(updates).length > 0) {
         const res = await fetch(`${apiUrl}/api/admin/organizations/${organization.id}`, {
@@ -466,6 +474,46 @@ export function EditClientModal({
                 onChange={(e) => setChatwootToken(e.target.value)}
                 placeholder="Token de acesso"
               />
+            </div>
+
+            <hr className="border-border" />
+
+            <div className="space-y-2">
+              <Label>Kommo — Webhook URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={`${apiUrl}/webhooks/kommo/${organization.id}`}
+                  className="text-xs font-mono bg-muted"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${apiUrl}/webhooks/kommo/${organization.id}`);
+                    showMsg("URL copiada!");
+                  }}
+                >
+                  Copiar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Configure esta URL na Kommo em Configurações → Integrações → Webhooks → Evento: &quot;Lead adicionado&quot;
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Kommo — Mensagem de Boas-vindas</Label>
+              <Textarea
+                rows={3}
+                value={kommoWelcomeMessage}
+                onChange={(e) => setKommoWelcomeMessage(e.target.value)}
+                placeholder="Olá {{nome}}! Vi que você demonstrou interesse. Como posso te ajudar?"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enviada no WhatsApp quando um lead chega via Kommo. Use {"{{nome}}"} para o nome do lead.
+              </p>
             </div>
 
             <div className="flex justify-end">

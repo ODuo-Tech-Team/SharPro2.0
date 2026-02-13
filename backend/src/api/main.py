@@ -37,6 +37,7 @@ from src.api.knowledge import knowledge_router
 from src.api.leads import leads_router
 from src.api.followup import followup_router
 from src.api.simulator import simulator_router
+from src.api.kommo_webhook import kommo_router
 from src.worker.ai_engine import generate_handoff_summary
 
 # ---------------------------------------------------------------------------
@@ -98,6 +99,7 @@ app.include_router(knowledge_router)
 app.include_router(leads_router)
 app.include_router(followup_router)
 app.include_router(simulator_router)
+app.include_router(kommo_router)
 
 
 # ---------------------------------------------------------------------------
