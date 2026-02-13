@@ -203,6 +203,7 @@ class ChatSimulateRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    account_id: int
+    org_id: str
+    account_id: int = 0
     message: str
     history: list[ChatSimulateMessage] = []

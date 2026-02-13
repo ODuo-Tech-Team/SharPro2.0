@@ -55,7 +55,8 @@ async def simulate_chat(payload: ChatSimulateRequest) -> dict[str, Any]:
     Uses the same AI engine, prompt, knowledge base, and personality
     as production. Tools are mocked -- no real side effects.
     """
-    org = await supabase_svc.get_organization_by_account_id(payload.account_id)
+    # Lookup by org_id directly (more reliable than account_id)
+    org = await supabase_svc.get_organization_by_id(payload.org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
 

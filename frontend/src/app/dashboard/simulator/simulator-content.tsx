@@ -91,6 +91,7 @@ export function SimulatorContent({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          org_id: orgId,
           account_id: accountId,
           message: content,
           history,
